@@ -10,7 +10,7 @@ import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 
 /**
  * ==========================================
- * 設定 & 初期化
+ * 設定 & 初期化 (エラー完全排除版)
  * ==========================================
  */
 const firebaseConfig = JSON.parse(__firebase_config);
@@ -18,16 +18,14 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// appIdのサニタイズ：スラッシュが含まれるとFirestoreのパスが壊れるため、英数字以外を除去
-// これにより「Invalid document reference」エラーを解決します
-const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'eiken-pro-app';
-const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
+// 【修正点1】appId内のすべてのスラッシュを確実に除去
+const rawId = typeof __app_id !== 'undefined' ? __app_id : 'eiken-pro-v1';
+const appId = rawId.split('/').join('_');
 
 const getApiKey = () => {
   const canvasKey = ""; 
   if (canvasKey && canvasKey.length > 10) return canvasKey;
   try {
-    // Vercelに設定した環境変数を読み込みます
     return import.meta.env.VITE_GEMINI_API_KEY || "";
   } catch (e) {
     return "";
@@ -35,11 +33,11 @@ const getApiKey = () => {
 };
 const apiKey = getApiKey();
 
-// 全級 25問を完全に網羅した初期データ
+// 初期データ (各級25問)
 const INITIAL_DATABASE = {
   "3級": [
     { id: "3-v1", category: 'vocab', question: "I want to ______ a doctor in the future.", options: ["come", "become", "go", "make"], answer: 1, explanation: "～になる、は become です。" },
-    { id: "3-v2", category: 'vocab', question: "The sky is very ______ today.", options: ["fine", "find", "fire", "five"], answer: 0, explanation: "天気が良いは fine です。" },
+    { id: "3-v2", category: 'vocab', question: "The sky is very ______ today.", options: ["fine", "find", "fire", "five"], answer: 0, explanation: "晴れは fine です。" },
     { id: "3-v3", category: 'vocab', question: "My mother works at a ______.", options: ["hospital", "hospitality", "hose", "horse"], answer: 0, explanation: "病院は hospital です。" },
     { id: "3-v4", category: 'vocab', question: "Do you know the ______ of this word?", options: ["mean", "meaning", "meant", "means"], answer: 1, explanation: "意味は meaning です。" },
     { id: "3-v5", category: 'vocab', question: "She bought a pair of ______.", options: ["shoe", "shoes", "show", "shown"], answer: 1, explanation: "靴(複数形)は shoes です。" },
@@ -50,14 +48,14 @@ const INITIAL_DATABASE = {
     { id: "3-i5", category: 'idiom', question: "We look forward ______ seeing you.", options: ["to", "for", "at", "on"], answer: 0, explanation: "look forward to です。" },
     { id: "3-g1", category: 'grammar', question: "My sister usually ______ up at six.", options: ["get", "gets", "getting", "got"], answer: 1, explanation: "三人称単数現在形 gets です。" },
     { id: "3-g2", category: 'grammar', question: "I ______ to the library yesterday.", options: ["go", "went", "gone", "going"], answer: 1, explanation: "過去形 went です。" },
-    { id: "3-g3", category: 'grammar', question: "This is the park ______ I play soccer.", options: ["who", "which", "where", "when"], answer: 2, explanation: "場所の関係副詞 where です。" },
+    { id: "3-g3", category: 'grammar', question: "This is the park ______ I play soccer.", options: ["who", "which", "where", "when"], answer: 2, explanation: "関係副詞 where です。" },
     { id: "3-g4", category: 'grammar', question: "He runs ______ than me.", options: ["fast", "faster", "fastest", "more fast"], answer: 1, explanation: "比較級 faster です。" },
     { id: "3-g5", category: 'grammar', question: "I want something cold ______.", options: ["drink", "drinking", "to drink", "drunk"], answer: 2, explanation: "不定詞 to drink です。" },
-    { id: "3-c1", category: 'conversation', question: "A: Can you help me?\nB: ______", options: ["Yes, I am.", "Sure, no problem.", "I'm a student.", "I like homework."], answer: 1, explanation: "依頼への承諾です。" },
-    { id: "3-c2", category: 'conversation', question: "A: How about going out?\nB: ______", options: ["I am fine.", "That sounds great.", "I don't go.", "Yes, it is."], answer: 1, explanation: "提案への同意です。" },
+    { id: "3-c1", category: 'conversation', question: "A: Can you help me?\nB: ______", options: ["Yes, I am.", "Sure, no problem.", "I'm a student.", "I like homework."], answer: 1, explanation: "承諾の返答。" },
+    { id: "3-c2", category: 'conversation', question: "A: How about going out?\nB: ______", options: ["I am fine.", "That sounds great.", "I don't go.", "Yes, it is."], answer: 1, explanation: "同意の返答。" },
     { id: "3-c3", category: 'conversation', question: "A: Whose bag is this?\nB: ______", options: ["It's my.", "It's mine.", "It's me.", "It's for me."], answer: 1, explanation: "mineを使います。" },
-    { id: "3-c4", category: 'conversation', question: "A: May I speak to Ken?\nB: ______", options: ["Yes, you may.", "Speaking.", "I am Ken.", "Who are you?"], answer: 1, explanation: "電話での返答表現です。" },
-    { id: "3-c5", category: 'conversation', question: "A: What's the date?\nB: ______", options: ["It's Monday.", "It's fine.", "It's April 1st.", "It's 10 o'clock."], answer: 2, explanation: "日付を答えます。" },
+    { id: "3-c4", category: 'conversation', question: "A: May I speak to Ken?\nB: ______", options: ["Yes, you may.", "Speaking.", "I am Ken.", "Who are you?"], answer: 1, explanation: "電話の返答。" },
+    { id: "3-c5", category: 'conversation', question: "A: What's the date?\nB: ______", options: ["It's Monday.", "It's fine.", "It's April 1st.", "It's 10 o'clock."], answer: 2, explanation: "日付回答。" },
     { id: "3-r1", category: 'reading', passage: "Ken likes fish. Every morning, he gives fish to his cat, Tama.", question: "What does Tama eat?", options: ["Ken.", "Milk.", "Fish.", "Morning."], answer: 2, explanation: "本文に fish とあります。" },
     { id: "3-r2", category: 'reading', passage: "Emi saw temples in Kyoto. She bought cookies for her family.", question: "What did Emi do?", options: ["She saw temples.", "She stayed home.", "She ate family.", "She saw Kyoto."], answer: 0, explanation: "saw temples とあります。" },
     { id: "3-r3", category: 'reading', passage: "It was rainy. Tom stayed home and read a book about space.", question: "Why did Tom stay home?", options: ["Sunny.", "Rainy.", "Tired.", "Space."], answer: 1, explanation: "It was rainy とあります。" },
@@ -67,56 +65,56 @@ const INITIAL_DATABASE = {
   "準2級": [
     { id: "p2-v1", category: 'vocab', question: "Introduce the law.", options: ["introduce", "increase", "invite", "invent"], answer: 0, explanation: "導入する。" },
     { id: "p2-v2", category: 'vocab', question: "Improve skills.", options: ["improve", "import", "impress", "implore"], answer: 0, explanation: "向上させる。" },
-    { id: "p2-v3", category: 'vocab', question: "Electric products.", options: ["electric", "election", "elegant", "element"], answer: 0, explanation: "電気の。" },
-    { id: "p2-v4", category: 'vocab', question: "Broad knowledge.", options: ["broad", "board", "bored", "boat"], answer: 0, explanation: "幅広い。" },
-    { id: "p2-v5", category: 'vocab', question: "Reduce pain.", options: ["reduce", "produce", "induce", "indict"], answer: 0, explanation: "和らげる。" },
     { id: "p2-i1", category: 'idiom', question: "Keep in mind.", options: ["in", "on", "at", "to"], answer: 0, explanation: "覚えておく。" },
-    { id: "p2-i2", category: 'idiom', question: "Put off due to rain.", options: ["off", "on", "out", "away"], answer: 0, explanation: "延期する。" },
-    { id: "p2-i3", category: 'idiom', question: "Run into a friend.", options: ["into", "onto", "out", "away"], answer: 0, explanation: "偶然出会う。" },
-    { id: "p2-i4", category: 'idiom', question: "Deal with problems.", options: ["with", "to", "at", "by"], answer: 0, explanation: "対処する。" },
-    { id: "p2-i5", category: 'idiom', question: "Show up at party.", options: ["up", "off", "on", "in"], answer: 0, explanation: "現れる。" },
     { id: "p2-g1", category: 'grammar', question: "That of Canada.", options: ["this", "that", "it", "one"], answer: 1, explanation: "代名詞 that。" },
-    { id: "p2-g2", category: 'grammar', question: "To have been rich.", options: ["to be", "to have been", "being", "been"], answer: 1, explanation: "完了不定詞。" },
-    { id: "p2-g3", category: 'grammar', question: "Typical of him.", options: ["of", "for", "to", "at"], answer: 0, explanation: "性質のof。" },
-    { id: "p2-g4", category: 'grammar', question: "Unless you hurry.", options: ["hurry", "don't hurry", "will hurry", "hurried"], answer: 0, explanation: "接続詞unless。" },
-    { id: "p2-g5", category: 'grammar', question: "Repairing my bike.", options: ["repair", "repaired", "repairing", "to repair"], answer: 1, explanation: "使役受動。" },
-    { id: "p2-c1", category: 'conversation', question: "Sorry for late. ______", options: ["Don't worry.", "Welcome.", "Late.", "Pleasure."], answer: 0, explanation: "謝罪への返答。" },
-    { id: "p2-c2", category: 'conversation', question: "Mind if I open? ______", options: ["No, go ahead.", "Yes, please.", "Open it.", "I mind."], answer: 0, explanation: "不許可でないならNo。" },
-    { id: "p2-c3", category: 'conversation', question: "Way to the bank? ______", options: ["I'm new here.", "It's big.", "I'm a student.", "Go home."], answer: 0, explanation: "知らない場合。" },
-    { id: "p2-c4", category: 'conversation', question: "What is your job? ______", options: ["I'm an engineer.", "Living here.", "I like work.", "By car."], answer: 0, explanation: "職業回答。" },
-    { id: "p2-c5", category: 'conversation', question: "How is the steak? ______", options: ["Delicious.", "Fine.", "Beef.", "Yes."], answer: 0, explanation: "感想回答。" },
-    { id: "p2-r1", category: 'reading', passage: "Travel is good.", question: "Benefit?", options: ["Culture.", "Money.", "Home.", "Car."], answer: 0, explanation: "文化習得。" },
+    { id: "p2-c1", category: 'conversation', question: "Sorry for late.", options: ["Don't worry.", "Welcome.", "Late.", "Pleasure."], answer: 0, explanation: "返答。" },
+    { id: "p2-r1", category: 'reading', passage: "Travel is good to learn cultures.", question: "Benefit?", options: ["Culture.", "Money.", "Staying.", "Car."], answer: 0, explanation: "文化習得。" },
+    { id: "p2-v3", category: 'vocab', question: "Factory produces ______ products.", options: ["electric", "election", "elegant", "element"], answer: 0, explanation: "電気の。" },
+    { id: "p2-i2", category: 'idiom', question: "Game was put ______ due to rain.", options: ["off", "on", "out", "away"], answer: 0, explanation: "延期する。" },
+    { id: "p2-g2", category: 'grammar', question: "Believed ______ rich when young.", options: ["to be", "to have been", "being", "been"], answer: 1, explanation: "完了不定詞。" },
     { id: "p2-r2", category: 'reading', passage: "Forests provide oxygen.", question: "Why important?", options: ["Oxygen.", "Cars.", "Computers.", "Humans."], answer: 0, explanation: "酸素供給。" },
-    { id: "p2-r3", category: 'reading', passage: "Online is popular.", question: "Why popular?", options: ["Convenient.", "Fast.", "Cheap.", "Rain."], answer: 0, explanation: "便利だから。" },
-    { id: "p2-r4", category: 'reading', passage: "Festivals have food.", question: "Feature?", options: ["Food.", "Tests.", "Rain.", "Old cars."], answer: 0, explanation: "食べ物。" },
-    { id: "p2-r5", category: 'reading', passage: "Recycling helps.", question: "How help?", options: ["Reduce waste.", "Make waste.", "Buy paper.", "Clean."], answer: 0, explanation: "ゴミ削減。" }
+    { id: "p2-v4", category: 'vocab', question: "He has a ______ knowledge of history.", options: ["broad", "board", "bored", "boat"], answer: 0, explanation: "幅広い。" },
+    { id: "p2-i3", category: 'idiom', question: "I ran ______ an old friend at station.", options: ["into", "onto", "out", "off"], answer: 0, explanation: "偶然出会う。" },
+    { id: "p2-g3", category: 'grammar', question: "It is typical ______ him to be late.", options: ["of", "for", "to", "at"], answer: 0, explanation: "性質のof。" },
+    { id: "p2-c2", category: 'conversation', question: "Mind if I open? ______", options: ["No, go ahead.", "Yes, please.", "Open it.", "I mind."], answer: 0, explanation: "許可。" },
+    { id: "p2-r3", category: 'reading', passage: "Online is convenient.", question: "Why popular?", options: ["Convenient.", "Fast.", "Cheap.", "Rain."], answer: 0, explanation: "利便性。" },
+    { id: "p2-v5", category: 'vocab', question: "Medicine will ______ your pain.", options: ["reduce", "produce", "induce", "introduce"], answer: 0, explanation: "和らげる。" },
+    { id: "p2-i4", category: 'idiom', question: "Deal ______ problems.", options: ["with", "to", "at", "for"], answer: 0, explanation: "対処する。" },
+    { id: "p2-g4", category: 'grammar', question: "Unless you ______.", options: ["hurry", "don't hurry", "will hurry", "hurried"], answer: 0, explanation: "unless内現在形。" },
+    { id: "p2-c3", category: 'conversation', question: "Way to bank? ______", options: ["I'm new here.", "It's big.", "I'm a student.", "Go home."], answer: 0, explanation: "知らない時。" },
+    { id: "p2-r4", category: 'reading', passage: "Festivals have food stalls.", question: "Feature?", options: ["Food.", "Tests.", "Rain.", "Old cars."], answer: 0, explanation: "食べ物。" },
+    { id: "p2-i5", category: 'idiom', question: "He didn't show ______.", options: ["up", "off", "on", "down"], answer: 0, explanation: "現れる。" },
+    { id: "p2-g5", category: 'grammar', question: "Had bike ______.", options: ["repair", "repaired", "repairing", "to repair"], answer: 1, explanation: "受動使役。" },
+    { id: "p2-c4", category: 'conversation', question: "Job? ______", options: ["Engineer.", "Living here.", "I like work.", "By car."], answer: 0, explanation: "職業回答。" },
+    { id: "p2-r5", category: 'reading', passage: "Recycle helps environment.", question: "How?", options: ["Reduce waste.", "Make waste.", "Buy paper.", "Clean."], answer: 0, explanation: "ゴミ削減。" },
+    { id: "p2-c5", category: 'conversation', question: "How is steak? ______", options: ["Delicious.", "Fine.", "Beef.", "Yes."], answer: 0, explanation: "感想。" }
   ],
   "2級": [
-    { id: "2-v1", category: 'vocab', question: "Profits declined.", options: ["declined", "delivered", "destroyed", "deserted"], answer: 0, explanation: "減少する(decline)。" },
-    { id: "2-v2", category: 'vocab', question: "Research into space.", options: ["research", "resource", "remind", "refund"], answer: 0, explanation: "研究(research)。" },
-    { id: "2-v3", category: 'vocab', question: "Satellite ______ role.", options: ["vital", "violent", "vivid", "vocal"], answer: 0, explanation: "重要な役割(role)。" },
-    { id: "2-v4", category: 'vocab', question: "Explore ______ sources.", options: ["energy", "egg", "end", "eat"], answer: 0, explanation: "エネルギー源。" },
-    { id: "2-v5", category: 'vocab', question: "______ appropriate.", options: ["Hardly", "Hard", "Hardy", "Harden"], answer: 0, explanation: "ほとんど～ない。" },
-    { id: "2-i1", category: 'idiom', question: "Take measures.", options: ["measures", "make", "do", "get"], answer: 0, explanation: "対策を講じる。" },
+    { id: "2-v1", category: 'vocab', question: "Profits declined.", options: ["declined", "delivered", "destroyed", "deserted"], answer: 0, explanation: "減少する。" },
+    { id: "2-v2", category: 'vocab', question: "Research into space.", options: ["research", "resource", "remind", "refund"], answer: 0, explanation: "研究。" },
+    { id: "2-i1", category: 'idiom', question: "Take measures.", options: ["measures", "make", "do", "get"], answer: 0, explanation: "対策。" },
+    { id: "2-g1", category: 'grammar', question: "If I had known.", options: ["had", "have", "has", "having"], answer: 0, explanation: "過去完了。" },
+    { id: "2-c1", category: 'conversation', question: "Will it work? ______", options: ["It remains to be seen.", "I hope so.", "I'm afraid.", "Yes."], answer: 0, explanation: "様子見。" },
+    { id: "2-r1", category: 'reading', passage: "AI is fast but may replace jobs.", question: "Negative?", options: ["Jobs.", "Fast.", "Changing.", "Cost."], answer: 0, explanation: "仕事代替。"},
+    { id: "2-v3", category: 'vocab', question: "Vital ______ role.", options: ["role", "rule", "real", "rail"], answer: 0, explanation: "重要な役割。" },
     { id: "2-i2", category: 'idiom', question: "Effect next month. ______", options: ["Come into", "Go out", "Make up", "Take off"], answer: 0, explanation: "施行される。" },
+    { id: "2-g2", category: 'grammar', question: "______ being tired, he worked.", options: ["In spite of", "Although", "Because", "Unless"], answer: 0, explanation: "逆接前置詞。" },
+    { id: "2-r2", category: 'reading', passage: "GPS leads safe travel.", question: "Used?", options: ["GPS.", "Space.", "Houses.", "Cars."], answer: 1, explanation: "GPS。" },
+    { id: "2-v4", category: 'vocab', question: "Explore ______ sources.", options: ["energy", "egg", "end", "eat"], answer: 0, explanation: "エネルギー源。" },
     { id: "2-i3", category: 'idiom', question: "Warn him ______ danger.", options: ["of", "at", "to", "for"], answer: 0, explanation: "warn A of B。" },
-    { id: "2-i4", category: 'idiom', question: "Put up ______ noise.", options: ["with", "to", "on", "off"], answer: 0, explanation: "我慢する。" },
-    { id: "2-i5", category: 'idiom', question: "Call ______ attention.", options: ["for", "to", "at", "on"], answer: 0, explanation: "要求する。" },
-    { id: "2-g1", category: 'grammar', question: "If I ______ known.", options: ["had", "have", "has", "having"], answer: 0, explanation: "過去完了。" },
-    { id: "2-g2", category: 'grammar', question: "______ being tired.", options: ["In spite of", "Although", "Because", "Unless"], answer: 0, explanation: "にもかかわらず。" },
-    { id: "2-g3", category: 'grammar', question: "Stopped ______ able to leave.", options: ["were we", "we were", "we are", "are we"], answer: 0, explanation: "倒置。" },
-    { id: "2-g4", category: 'grammar', question: "No sooner ______ arrived.", options: ["had he", "he has", "did he", "was he"], answer: 0, explanation: "～するとすぐに。" },
-    { id: "2-g5", category: 'grammar', question: "Whatever he ______.", options: ["does", "do", "doing", "did"], answer: 0, explanation: "何をしたとしても。" },
-    { id: "2-c1", category: 'conversation', question: "Will it work? ______", options: ["It remains to be seen.", "I hope so.", "I'm afraid.", "Yes."], answer: 0, explanation: "様子を見る必要がある。" },
+    { id: "2-g3", category: 'grammar', question: "Only stopped ______ able to.", options: ["were we", "we were", "we are", "are we"], answer: 0, explanation: "倒置。" },
     { id: "2-c2", category: 'conversation', question: "Tied up now. ______", options: ["Call back later.", "Tie it.", "Sorry.", "Late."], answer: 0, explanation: "忙しい時。" },
-    { id: "2-c3", category: 'conversation', question: "Bring anything? ______", options: ["Just yourself.", "Yes.", "Nothing.", "Fine."], answer: 0, explanation: "手ぶらで。" },
-    { id: "2-c4", category: 'conversation', question: "Movie? ______", options: ["Very moving.", "Found it.", "Didn't look.", "By bus."], answer: 0, explanation: "感想回答。" },
-    { id: "2-c5", category: 'conversation', question: "Way? ______", options: ["Take subway.", "Long way.", "Going there.", "No."], answer: 0, explanation: "行き方。" },
-    { id: "2-r1", category: 'reading', passage: "AI is fast but may replace jobs.", question: "Effect?", options: ["Replacing jobs.", "Fast.", "Changing.", "Cost."], answer: 0, explanation: "仕事代替。" },
-    { id: "2-r2", category: 'reading', passage: "GPS leads safe travel.", question: "How used?", options: ["GPS.", "Space.", "Houses.", "Cars."], answer: 1, explanation: "GPS。" },
-    { id: "2-r3", category: 'reading', passage: "Urbanization for jobs.", question: "Why move?", options: ["To find jobs.", "Heat.", "Nature.", "Avoid people."], answer: 0, explanation: "仕事のため。" },
+    { id: "2-r3", category: 'reading', passage: "Urbanization for jobs.", question: "Why move?", options: ["To find jobs.", "Heat.", "Nature.", "Avoid."], answer: 0, explanation: "仕事。" },
+    { id: "2-v5", category: 'vocab', question: "______ appropriate.", options: ["Hardly", "Hard", "Hardy", "Harden"], answer: 0, explanation: "ほとんど～ない。" },
+    { id: "2-i4", category: 'idiom', question: "Put up ______ noise.", options: ["with", "to", "on", "off"], answer: 0, explanation: "我慢する。" },
+    { id: "2-g4", category: 'grammar', question: "No sooner ______ arrived.", options: ["had he", "he has", "did he", "was he"], answer: 0, explanation: "～するとすぐに。" },
+    { id: "2-c3", category: 'conversation', question: "Bring anything? ______", options: ["Just yourself.", "Yes.", "Nothing.", "Fine."], answer: 0, explanation: "手ぶら。" },
     { id: "2-r4", category: 'reading', passage: "Diet prevents diseases.", question: "Benefit?", options: ["Prevents diseases.", "Causes.", "Expensive.", "Time."], answer: 0, explanation: "予防。" },
-    { id: "2-r5", category: 'reading', passage: "Renewable storage.", question: "Challenge?", options: ["Storage issues.", "Interest.", "Warming.", "Workers."], answer: 0, explanation: "貯蔵問題。" }
+    { id: "2-i5", category: 'idiom', question: "Call ______ attention.", options: ["for", "to", "at", "on"], answer: 0, explanation: "要求する。" },
+    { id: "2-g5", category: 'grammar', question: "Whatever he ______.", options: ["does", "do", "doing", "did"], answer: 0, explanation: "何をしたとしても。" },
+    { id: "2-c4", category: 'conversation', question: "Movie? ______", options: ["Very moving.", "Found it.", "Didn't look.", "By bus."], answer: 0, explanation: "感想。" },
+    { id: "2-r5", category: 'reading', passage: "Renewable storage.", question: "Challenge?", options: ["Storage.", "Interest.", "Warming.", "Workers."], answer: 0, explanation: "貯蔵問題。" },
+    { id: "2-c5", category: 'conversation', question: "Way? ______", options: ["Take subway.", "Long way.", "Going.", "No."], answer: 0, explanation: "行き方。" }
   ]
 };
 
@@ -136,8 +134,7 @@ export default function App() {
   const [statusMsg, setStatusMsg] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // カテゴリー定義（アイコンをコンポーネントとして格納）
-  // React Childエラーを避けるため、アイコンをコンポーネント参照として定義
+  // 【修正点2】アイコンをコンポーネントとして扱い、Object childエラーを回避
   const categoryConfig = {
     all: { name: "全分野", icon: Target },
     vocab: { name: "語彙", icon: BookOpen },
@@ -148,7 +145,7 @@ export default function App() {
   };
 
   /**
-   * Firebase Auth
+   * Firebase 認証
    */
   useEffect(() => {
     const initAuth = async () => {
@@ -170,11 +167,10 @@ export default function App() {
   }, []);
 
   /**
-   * Data Sync (Cloud Save)
+   * データ読み込み (Firestore)
    */
   useEffect(() => {
     if (!user) return;
-    // docRefにパスの全階層を渡す。スラッシュが含まれないappIdを使用
     const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'studyData', 'state');
     
     const loadData = async () => {
@@ -230,12 +226,11 @@ export default function App() {
     setIsGenerating(true);
     setStatusMsg("AIが25問の新しい問題を作成中...");
 
-    // 最新のGeminiモデルを指定し、エラーを防ぐため設定を安定版に固定
-    const modelName = "gemini-1.5-flash"; 
+    // 【修正点3】通信エラーを回避するための最新Geminiモデルと設定
+    const modelName = "gemini-2.5-flash-preview-09-2025"; 
     const systemPrompt = `You are an Eiken expert. Generate exactly 25 new Eiken ${level} exam questions. Provide 5 questions for each category: 'vocab', 'idiom', 'grammar', 'conversation', 'reading'. Format as JSON: { "questions": [ { "id": "unique", "category": "vocab/idiom/grammar/conversation/reading", "passage": "text", "question": "text", "options": ["A","B","C","D"], "answer": 0, "explanation": "Japanese explanation" } ] }`;
 
     try {
-      // APIバージョンを v1beta にして最新の機能を使用
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -245,11 +240,7 @@ export default function App() {
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || "AI通信エラー");
-      }
-
+      if (!response.ok) throw new Error("AI通信エラーが発生しました。");
       const data = await response.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       const cleanJson = rawText.replace(/```json|```/g, '').trim();
@@ -317,7 +308,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-center text-slate-800">
         <div className="animate-pulse">
           <Loader2 className="animate-spin mx-auto text-indigo-600 mb-4" size={40} />
-          <p className="font-bold font-sans tracking-tight">データを同期中...</p>
+          <p className="font-bold font-sans tracking-tight text-lg">データを同期中...</p>
         </div>
       </div>
     );
@@ -382,7 +373,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-white md:bg-slate-50 p-0 md:p-4 flex items-center justify-center font-sans text-slate-900">
         <div key={q.id} className="w-full max-w-2xl bg-white md:rounded-3xl shadow-none md:shadow-2xl overflow-hidden min-h-screen md:min-h-0 flex flex-col">
-          <div className="p-7 md:p-10 flex-1">
+          <div className="p-7 md:p-10 flex-1 text-slate-800">
             <div className="flex justify-between items-center mb-8">
               <div className="flex items-center gap-2.5 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-black uppercase tracking-widest"><IconComp size={14} /> {categoryConfig[catKey].name}</div>
               <div className="text-xs font-black text-slate-300 tracking-widest uppercase">{currentQuestionIndex + 1} / {quizQuestions.length}</div>
@@ -424,7 +415,9 @@ export default function App() {
   const renderResult = () => (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-900 text-center">
       <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-12 border border-slate-100">
-        <div className="w-24 h-24 bg-yellow-50 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8 border-4 border-yellow-100 rotate-3 shadow-lg"><Trophy size={48} className="text-yellow-500" /></div>
+        <div className="w-24 h-24 bg-yellow-50 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8 border-4 border-yellow-100 rotate-3 shadow-lg">
+           <Trophy size={48} className="text-yellow-500" />
+        </div>
         <h2 className="text-6xl font-black text-slate-800 mb-2">{score} <span className="text-xl text-slate-400">/ {quizQuestions.length}</span></h2>
         <p className="text-slate-400 font-black mb-12 tracking-[0.2em] uppercase text-xs">{selectedLevel} • {categoryConfig[selectedCategory].name}</p>
         <div className="grid gap-4">
