@@ -10,7 +10,7 @@ import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 
 /**
  * ==========================================
- * 設定 & 初期化
+ * 設定 & 初期化 (エラー完全排除版)
  * ==========================================
  */
 const firebaseConfig = JSON.parse(__firebase_config);
@@ -18,10 +18,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// appIdのサニタイズ：スラッシュが含まれるとFirestoreのパスが壊れるため、英数字以外を除去
-// これにより「Invalid document reference」エラーを解決します
-const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'eiken-pro-app';
-const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
+// 【重要】アプリID内のスラッシュを完全に除去してFirestoreのパスエラーを防止
+const rawId = typeof __app_id !== 'undefined' ? __app_id : 'eiken-pro-v1';
+const appId = rawId.replace(/\//g, '_');
 
 const getApiKey = () => {
   const canvasKey = ""; 
@@ -34,11 +33,11 @@ const getApiKey = () => {
 };
 const apiKey = getApiKey();
 
-// 全級 25問を完全に網羅した初期データ
+// 初期データ (各級25問)
 const INITIAL_DATABASE = {
   "3級": [
     { id: "3-v1", category: 'vocab', question: "I want to ______ a doctor in the future.", options: ["come", "become", "go", "make"], answer: 1, explanation: "～になる、は become です。" },
-    { id: "3-v2", category: 'vocab', question: "The sky is very ______ today.", options: ["fine", "find", "fire", "five"], answer: 0, explanation: "天気が良いは fine です。" },
+    { id: "3-v2", category: 'vocab', question: "The sky is very ______ today.", options: ["fine", "find", "fire", "five"], answer: 0, explanation: "晴れは fine です。" },
     { id: "3-v3", category: 'vocab', question: "My mother works at a ______.", options: ["hospital", "hospitality", "hose", "horse"], answer: 0, explanation: "病院は hospital です。" },
     { id: "3-v4", category: 'vocab', question: "Do you know the ______ of this word?", options: ["mean", "meaning", "meant", "means"], answer: 1, explanation: "意味は meaning です。" },
     { id: "3-v5", category: 'vocab', question: "She bought a pair of ______.", options: ["shoe", "shoes", "show", "shown"], answer: 1, explanation: "靴(複数形)は shoes です。" },
@@ -49,7 +48,7 @@ const INITIAL_DATABASE = {
     { id: "3-i5", category: 'idiom', question: "We look forward ______ seeing you.", options: ["to", "for", "at", "on"], answer: 0, explanation: "look forward to です。" },
     { id: "3-g1", category: 'grammar', question: "My sister usually ______ up at six.", options: ["get", "gets", "getting", "got"], answer: 1, explanation: "三人称単数現在形 gets です。" },
     { id: "3-g2", category: 'grammar', question: "I ______ to the library yesterday.", options: ["go", "went", "gone", "going"], answer: 1, explanation: "過去形 went です。" },
-    { id: "3-g3", category: 'grammar', question: "This is the park ______ I play soccer.", options: ["who", "which", "where", "when"], answer: 2, explanation: "場所の関係副詞 where です。" },
+    { id: "3-g3", category: 'grammar', question: "This is the park ______ I play soccer.", options: ["who", "which", "where", "when"], answer: 2, explanation: "関係副詞 where です。" },
     { id: "3-g4", category: 'grammar', question: "He runs ______ than me.", options: ["fast", "faster", "fastest", "more fast"], answer: 1, explanation: "比較級 faster です。" },
     { id: "3-g5", category: 'grammar', question: "I want something cold ______.", options: ["drink", "drinking", "to drink", "drunk"], answer: 2, explanation: "不定詞 to drink です。" },
     { id: "3-c1", category: 'conversation', question: "A: Can you help me?\nB: ______", options: ["Yes, I am.", "Sure, no problem.", "I'm a student.", "I like homework."], answer: 1, explanation: "承諾の返答。" },
@@ -66,56 +65,56 @@ const INITIAL_DATABASE = {
   "準2級": [
     { id: "p2-v1", category: 'vocab', question: "Introduce the law.", options: ["introduce", "increase", "invite", "invent"], answer: 0, explanation: "導入する。" },
     { id: "p2-v2", category: 'vocab', question: "Improve skills.", options: ["improve", "import", "impress", "implore"], answer: 0, explanation: "向上させる。" },
-    { id: "p2-v3", category: 'vocab', question: "Electric products.", options: ["electric", "election", "elegant", "element"], answer: 0, explanation: "電気の。" },
-    { id: "p2-v4", category: 'vocab', question: "Broad knowledge.", options: ["broad", "board", "bored", "boat"], answer: 0, explanation: "幅広い。" },
-    { id: "p2-v5", category: 'vocab', question: "Reduce pain.", options: ["reduce", "produce", "induce", "indict"], answer: 0, explanation: "和らげる。" },
     { id: "p2-i1", category: 'idiom', question: "Keep in mind.", options: ["in", "on", "at", "to"], answer: 0, explanation: "覚えておく。" },
-    { id: "p2-i2", category: 'idiom', question: "Put off due to rain.", options: ["off", "on", "out", "away"], answer: 0, explanation: "延期する。" },
-    { id: "p2-i3", category: 'idiom', question: "Run into a friend.", options: ["into", "onto", "out", "away"], answer: 0, explanation: "偶然出会う。" },
-    { id: "p2-i4", category: 'idiom', question: "Deal with problems.", options: ["with", "to", "at", "by"], answer: 0, explanation: "対処する。" },
-    { id: "p2-i5", category: 'idiom', question: "Show up at party.", options: ["up", "off", "on", "in"], answer: 0, explanation: "現れる。" },
     { id: "p2-g1", category: 'grammar', question: "That of Canada.", options: ["this", "that", "it", "one"], answer: 1, explanation: "代名詞 that。" },
-    { id: "p2-g2", category: 'grammar', question: "To have been rich.", options: ["to be", "to have been", "being", "been"], answer: 1, explanation: "完了不定詞。" },
-    { id: "p2-g3", category: 'grammar', question: "Typical of him.", options: ["of", "for", "to", "at"], answer: 0, explanation: "性質のof。" },
-    { id: "p2-g4", category: 'grammar', question: "Unless you hurry.", options: ["hurry", "don't hurry", "will hurry", "hurried"], answer: 0, explanation: "接続詞unless。" },
-    { id: "p2-g5", category: 'grammar', question: "Repairing my bike.", options: ["repair", "repaired", "repairing", "to repair"], answer: 1, explanation: "使役受動。" },
     { id: "p2-c1", category: 'conversation', question: "Sorry for late.", options: ["Don't worry.", "Welcome.", "Late.", "Pleasure."], answer: 0, explanation: "返答。" },
-    { id: "p2-c2", category: 'conversation', question: "Mind if I open?", options: ["No, go ahead.", "Yes, please.", "Open it.", "I mind."], answer: 0, explanation: "許可。" },
-    { id: "p2-c3", category: 'conversation', question: "Way to bank?", options: ["I'm new here.", "It's big.", "I'm a student.", "Go home."], answer: 0, explanation: "知らない時。" },
-    { id: "p2-c4", category: 'conversation', question: "What is your job?", options: ["Engineer.", "Living here.", "I like work.", "By train."], answer: 0, explanation: "職業。" },
-    { id: "p2-c5", category: 'conversation', question: "How is steak?", options: ["Delicious.", "Fine.", "Beef.", "Yes."], answer: 0, explanation: "感想。" },
     { id: "p2-r1", category: 'reading', passage: "Travel is good to learn cultures.", question: "Benefit?", options: ["Culture.", "Money.", "Staying.", "Car."], answer: 0, explanation: "文化習得。" },
+    { id: "p2-v3", category: 'vocab', question: "Factory produces ______ products.", options: ["electric", "election", "elegant", "element"], answer: 0, explanation: "電気の。" },
+    { id: "p2-i2", category: 'idiom', question: "Game was put ______ due to rain.", options: ["off", "on", "out", "away"], answer: 0, explanation: "延期する。" },
+    { id: "p2-g2", category: 'grammar', question: "Believed ______ rich when young.", options: ["to be", "to have been", "being", "been"], answer: 1, explanation: "完了不定詞。" },
     { id: "p2-r2", category: 'reading', passage: "Forests provide oxygen.", question: "Why important?", options: ["Oxygen.", "Cars.", "Computers.", "Humans."], answer: 0, explanation: "酸素供給。" },
-    { id: "p2-r3", category: 'reading', passage: "Online is popular.", question: "Why popular?", options: ["Convenient.", "Fast.", "Cheap.", "Rain."], answer: 0, explanation: "利便性。" },
-    { id: "p2-r4", category: 'reading', passage: "Festivals have food.", question: "Feature?", options: ["Food.", "Tests.", "Rain.", "Old cars."], answer: 0, explanation: "食べ物。" },
-    { id: "p2-r5", category: 'reading', passage: "Recycle helps.", question: "How?", options: ["Reduce waste.", "Make waste.", "Buy paper.", "Clean."], answer: 0, explanation: "ゴミ削減。" }
+    { id: "p2-v4", category: 'vocab', question: "He has a ______ knowledge of history.", options: ["broad", "board", "bored", "boat"], answer: 0, explanation: "幅広い。" },
+    { id: "p2-i3", category: 'idiom', question: "I ran ______ an old friend at station.", options: ["into", "onto", "out", "off"], answer: 0, explanation: "偶然出会う。" },
+    { id: "p2-g3", category: 'grammar', question: "It is typical ______ him to be late.", options: ["of", "for", "to", "at"], answer: 0, explanation: "性質のof。" },
+    { id: "p2-c2", category: 'conversation', question: "Mind if I open? ______", options: ["No, go ahead.", "Yes, please.", "Open it.", "I mind."], answer: 0, explanation: "許可。" },
+    { id: "p2-r3", category: 'reading', passage: "Online is convenient.", question: "Why popular?", options: ["Convenient.", "Fast.", "Cheap.", "Rain."], answer: 0, explanation: "利便性。" },
+    { id: "p2-v5", category: 'vocab', question: "Medicine will ______ your pain.", options: ["reduce", "produce", "induce", "introduce"], answer: 0, explanation: "和らげる。" },
+    { id: "p2-i4", category: 'idiom', question: "Deal ______ problems.", options: ["with", "to", "at", "for"], answer: 0, explanation: "対処する。" },
+    { id: "p2-g4", category: 'grammar', question: "Unless you ______.", options: ["hurry", "don't hurry", "will hurry", "hurried"], answer: 0, explanation: "unless内現在形。" },
+    { id: "p2-c3", category: 'conversation', question: "Way to bank? ______", options: ["I'm new here.", "It's big.", "I'm a student.", "Go home."], answer: 0, explanation: "知らない時。" },
+    { id: "p2-r4", category: 'reading', passage: "Festivals have food stalls.", question: "Feature?", options: ["Food.", "Tests.", "Rain.", "Old cars."], answer: 0, explanation: "食べ物。" },
+    { id: "p2-i5", category: 'idiom', question: "He didn't show ______.", options: ["up", "off", "on", "down"], answer: 0, explanation: "現れる。" },
+    { id: "p2-g5", category: 'grammar', question: "Had bike ______.", options: ["repair", "repaired", "repairing", "to repair"], answer: 1, explanation: "受動使役。" },
+    { id: "p2-c4", category: 'conversation', question: "Job? ______", options: ["Engineer.", "Living here.", "I like work.", "By car."], answer: 0, explanation: "職業回答。" },
+    { id: "p2-r5", category: 'reading', passage: "Recycle helps environment.", question: "How?", options: ["Reduce waste.", "Make waste.", "Buy paper.", "Clean."], answer: 0, explanation: "ゴミ削減。" },
+    { id: "p2-c5", category: 'conversation', question: "How is steak? ______", options: ["Delicious.", "Fine.", "Beef.", "Yes."], answer: 0, explanation: "感想。" }
   ],
   "2級": [
     { id: "2-v1", category: 'vocab', question: "Profits declined.", options: ["declined", "delivered", "destroyed", "deserted"], answer: 0, explanation: "減少する。" },
     { id: "2-v2", category: 'vocab', question: "Research into space.", options: ["research", "resource", "remind", "refund"], answer: 0, explanation: "研究。" },
-    { id: "2-v3", category: 'vocab', question: "Satellite plays role.", options: ["vital", "violent", "vivid", "vocal"], answer: 0, explanation: "役割。" },
-    { id: "2-v4", category: 'vocab', question: "Explore sources.", options: ["energy", "egg", "end", "eat"], answer: 0, explanation: "エネルギー。" },
-    { id: "2-v5", category: 'vocab', question: "Hardly appropriate.", options: ["Hardly", "Hard", "Hardy", "Harden"], answer: 0, explanation: "ほとんど～ない。" },
     { id: "2-i1", category: 'idiom', question: "Take measures.", options: ["measures", "make", "do", "get"], answer: 0, explanation: "対策。" },
-    { id: "2-i2", category: 'idiom', question: "Come into effect.", options: ["effect", "affect", "effort", "afford"], answer: 0, explanation: "施行。" },
-    { id: "2-i3", category: 'idiom', question: "Warn him of danger.", options: ["of", "at", "to", "for"], answer: 0, explanation: "warn A of B。" },
-    { id: "2-i4", category: 'idiom', question: "Put up with noise.", options: ["with", "to", "on", "off"], answer: 0, explanation: "我慢する。" },
-    { id: "2-i5", category: 'idiom', question: "Call for attention.", options: ["for", "to", "at", "on"], answer: 0, explanation: "要求する。" },
-    { id: "2-g1", category: 'grammar', question: "If I had known.", options: ["had", "have", "has", "having"], answer: 0, explanation: "過去完了。" },
-    { id: "2-g2", category: 'grammar', question: "In spite of being tired.", options: ["In spite of", "Although", "Because", "Unless"], answer: 0, explanation: "逆接前置詞。" },
-    { id: "2-g3", category: 'grammar', question: "Only stopped ______ able to.", options: ["were we", "we were", "we are", "are we"], answer: 0, explanation: "倒置。" },
-    { id: "2-g4", category: 'grammar', question: "No sooner had he arrived.", options: ["had he", "he has", "did he", "was he"], answer: 0, explanation: "～するとすぐに。" },
-    { id: "2-g5", category: 'grammar', question: "Whatever he does.", options: ["does", "do", "doing", "did"], answer: 0, explanation: "何をしたとしても。" },
+    { id: "2-g1", category: 'grammar', question: "If I ______ known.", options: ["had", "have", "has", "having"], answer: 0, explanation: "過去完了。" },
     { id: "2-c1", category: 'conversation', question: "Will it work? ______", options: ["It remains to be seen.", "I hope so.", "I'm afraid.", "Yes."], answer: 0, explanation: "様子見。" },
+    { id: "2-r1", category: 'reading', passage: "AI is fast but may replace jobs.", question: "Negative?", options: ["Jobs.", "Fast.", "Changing.", "Cost."], answer: 0, explanation: "仕事代替。"},
+    { id: "2-v3", category: 'vocab', question: "Vital ______ role.", options: ["role", "rule", "real", "rail"], answer: 0, explanation: "役割。" },
+    { id: "2-i2", category: 'idiom', question: "Effect next month. ______", options: ["Come into", "Go out", "Make up", "Take off"], answer: 0, explanation: "施行される。" },
+    { id: "2-g2", category: 'grammar', question: "______ being tired, he worked.", options: ["In spite of", "Although", "Because", "Unless"], answer: 0, explanation: "逆接前置詞。" },
+    { id: "2-r2", category: 'reading', passage: "GPS leads safe travel.", question: "Used?", options: ["GPS.", "Space.", "Houses.", "Cars."], answer: 1, explanation: "GPS。" },
+    { id: "2-v4", category: 'vocab', question: "Explore ______ sources.", options: ["energy", "egg", "end", "eat"], answer: 0, explanation: "エネルギー源。" },
+    { id: "2-i3", category: 'idiom', question: "Warn him ______ danger.", options: ["of", "at", "to", "for"], answer: 0, explanation: "warn A of B。" },
+    { id: "2-g3", category: 'grammar', question: "Only stopped ______ able to.", options: ["were we", "we were", "we are", "are we"], answer: 0, explanation: "倒置。" },
     { id: "2-c2", category: 'conversation', question: "Tied up now. ______", options: ["Call back later.", "Tie it.", "Sorry.", "Late."], answer: 0, explanation: "忙しい時。" },
+    { id: "2-r3", category: 'reading', passage: "Urbanization for jobs.", question: "Why move?", options: ["To find jobs.", "Heat.", "Nature.", "Avoid."], answer: 0, explanation: "仕事。" },
+    { id: "2-v5", category: 'vocab', question: "______ appropriate.", options: ["Hardly", "Hard", "Hardy", "Harden"], answer: 0, explanation: "ほとんど～ない。" },
+    { id: "2-i4", category: 'idiom', question: "Put up ______ noise.", options: ["with", "to", "on", "off"], answer: 0, explanation: "我慢する。" },
+    { id: "2-g4", category: 'grammar', question: "No sooner ______ arrived.", options: ["had he", "he has", "did he", "was he"], answer: 0, explanation: "～するとすぐに。" },
     { id: "2-c3", category: 'conversation', question: "Bring anything? ______", options: ["Just yourself.", "Yes.", "Nothing.", "Fine."], answer: 0, explanation: "手ぶら。" },
-    { id: "2-c4", category: 'conversation', question: "How did you find the movie?", options: ["Moving.", "Found.", "Look.", "Bus."], answer: 0, explanation: "感想。" },
-    { id: "2-c5", category: 'conversation', question: "Best way to get there?", options: ["Subway.", "Way.", "Going.", "No."], answer: 0, explanation: "移動。" },
-    { id: "2-r1", category: 'reading', passage: "AI is fast but may replace jobs.", question: "Negative?", options: ["Jobs.", "Fast.", "Work.", "Cost."], answer: 0, explanation: "仕事代替。" },
-    { id: "2-r2", category: 'reading', passage: "GPS leads safe travel.", question: "How used?", options: ["GPS.", "Space.", "Houses.", "Cars."], answer: 1, explanation: "GPS。" },
-    { id: "2-r3", category: 'reading', passage: "Urbanization for jobs.", question: "Why move?", options: ["To find jobs.", "Heat.", "Nature.", "Avoid."], answer: 0, explanation: "職。" },
-    { id: "2-r4", category: 'reading', passage: "Diet prevents diseases.", question: "Benefit?", options: ["Disease.", "Cause.", "Money.", "Time."], answer: 0, explanation: "予防。" },
-    { id: "2-r5", category: 'reading', passage: "Renewable energy storage.", question: "Challenge?", options: ["Storage.", "Interest.", "Warming.", "Workers."], answer: 0, explanation: "貯蔵問題。" }
+    { id: "2-r4", category: 'reading', passage: "Diet prevents diseases.", question: "Benefit?", options: ["Prevents diseases.", "Causes.", "Expensive.", "Time."], answer: 0, explanation: "予防。" },
+    { id: "2-i5", category: 'idiom', question: "Call ______ attention.", options: ["for", "to", "at", "on"], answer: 0, explanation: "要求する。" },
+    { id: "2-g5", category: 'grammar', question: "Whatever he ______.", options: ["does", "do", "doing", "did"], answer: 0, explanation: "何をしたとしても。" },
+    { id: "2-c4", category: 'conversation', question: "Movie? ______", options: ["Very moving.", "Found it.", "Didn't look.", "By bus."], answer: 0, explanation: "感想。" },
+    { id: "2-r5", category: 'reading', passage: "Renewable storage.", question: "Challenge?", options: ["Storage.", "Interest.", "Warming.", "Workers."], answer: 0, explanation: "貯蔵問題。" },
+    { id: "2-c5", category: 'conversation', question: "Way? ______", options: ["Take subway.", "Long way.", "Going.", "No."], answer: 0, explanation: "行き方。" }
   ]
 };
 
@@ -135,7 +134,7 @@ export default function App() {
   const [statusMsg, setStatusMsg] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // カテゴリー定義（アイコンをコンポーネントとして格納してReact Childエラーを回避）
+  // 【修正点】アイコンをコンポーネントとして扱い、Object childエラーを回避
   const categoryConfig = {
     all: { name: "全分野", icon: Target },
     vocab: { name: "語彙", icon: BookOpen },
@@ -146,7 +145,7 @@ export default function App() {
   };
 
   /**
-   * Firebase Auth
+   * Firebase 認証
    */
   useEffect(() => {
     const initAuth = async () => {
@@ -168,11 +167,11 @@ export default function App() {
   }, []);
 
   /**
-   * Data Sync (Firestore)
+   * データ読み込み (Firestore)
    */
   useEffect(() => {
     if (!user) return;
-    // セグメント数エラーを回避したdocRefパス
+    // セグメント数エラーを回避したdocRefパス (6セグメント)
     const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'studyData', 'state');
     
     const loadData = async () => {
@@ -228,25 +227,25 @@ export default function App() {
     setIsGenerating(true);
     setStatusMsg("AIが25問の新しい問題を作成中...");
 
-    // Vercel環境で動作する最新モデル形式
-    const modelName = "gemini-1.5-flash"; 
+    // 【修正点】通信エラーを回避するための最新Geminiモデル
+    const modelName = "gemini-2.5-flash-preview-09-2025"; 
     const systemPrompt = `You are an Eiken expert. Generate exactly 25 new Eiken ${level} exam questions. Provide 5 questions for each category: 'vocab', 'idiom', 'grammar', 'conversation', 'reading'. Format as JSON: { "questions": [ { "id": "unique", "category": "vocab/idiom/grammar/conversation/reading", "passage": "text", "question": "text", "options": ["A","B","C","D"], "answer": 0, "explanation": "Japanese explanation" } ] }`;
 
     try {
+      // APIバージョンをv1betaにして最新の機能を使用
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           contents: [{ parts: [{ text: systemPrompt }] }]
-          // responseMimeTypeエラーを防ぐため設定はシンプルに
         })
       });
 
-      if (!response.ok) throw new Error("AI通信エラーが発生しました。");
+      if (!response.ok) throw new Error("AI通信エラー");
       const data = await response.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AIの応答形式が不正です。");
+      if (!jsonMatch) throw new Error("AI形式エラー");
       const parsed = JSON.parse(jsonMatch[0]);
       
       const timestamp = Date.now();
@@ -308,10 +307,10 @@ export default function App() {
 
   if (!user || isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-center text-slate-800">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-center">
         <div className="animate-pulse">
           <Loader2 className="animate-spin mx-auto text-indigo-600 mb-4" size={40} />
-          <p className="font-bold font-sans tracking-tight text-lg">データを同期中...</p>
+          <p className="font-bold">データを同期中...</p>
         </div>
       </div>
     );
@@ -319,37 +318,37 @@ export default function App() {
 
   const renderMenu = () => (
     <div className="min-h-screen p-4 flex flex-col items-center justify-center font-sans">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-slate-100 relative overflow-hidden text-center text-slate-800">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-slate-100 relative overflow-hidden text-center text-slate-800 text-slate-800">
         <div className="absolute top-0 right-0 p-4 opacity-30 text-[10px] font-mono"><User size={10} className="inline mr-1" />{user.uid.substring(0,8)}</div>
-        <div className="flex items-center justify-center gap-3 mb-10 text-indigo-600">
-          <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg"><Settings2 size={24} /></div>
+        <div className="flex items-center justify-center gap-3 mb-10 text-indigo-600 text-indigo-600">
+          <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-lg"><Settings2 size={24} /></div>
           <h1 className="text-2xl font-black tracking-tight italic uppercase">Eiken Pro</h1>
         </div>
         <div className="space-y-4 text-left">
           {Object.keys(dbState).map(level => (
             <button key={level} onClick={() => { setSelectedLevel(level); setCurrentScreen('category'); }} className="w-full bg-slate-50 border border-slate-100 hover:border-indigo-400 p-5 rounded-[2rem] flex justify-between items-center transition-all group shadow-sm active:scale-95">
               <div>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{level}</span>
-                <div className="text-lg font-bold">学習開始</div>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest tracking-widest">{level}</span>
+                <div className="text-lg font-bold group-hover:text-indigo-600">学習開始</div>
               </div>
               <div className="flex flex-col items-end text-right">
-                <div className="text-base font-black text-indigo-600">{progress[level].percent}%</div>
-                <div className="text-[10px] text-slate-400 font-bold">{progress[level].mastered}/{progress[level].total} 問習得</div>
+                <div className="text-base font-black text-indigo-600 text-indigo-600">{progress[level].percent}%</div>
+                <div className="text-[10px] text-slate-400 font-bold font-bold">{progress[level].mastered}/{progress[level].total} 問習得</div>
               </div>
             </button>
           ))}
         </div>
-        {statusMsg && <div className="mt-8 p-3.5 bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-bold rounded-2xl animate-pulse text-center">{statusMsg}</div>}
+        {statusMsg && <div className="mt-8 p-3.5 bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-bold rounded-2xl animate-pulse animate-pulse text-center">{statusMsg}</div>}
       </div>
     </div>
   );
 
   const renderCategorySelect = () => (
-    <div className="min-h-screen p-4 flex flex-col items-center justify-center font-sans text-slate-800">
+    <div className="min-h-screen p-4 flex flex-col items-center justify-center font-sans text-slate-800 text-slate-800">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-slate-100 text-center">
-        <button onClick={() => setCurrentScreen('menu')} className="mb-8 text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1.5 text-xs font-black"><ArrowLeft size={16} /> 戻る</button>
-        <h2 className="text-xl font-black mb-8 uppercase tracking-tight">{selectedLevel} トレーニング</h2>
-        <div className="grid grid-cols-2 gap-3 mb-10 text-slate-700">
+        <button onClick={() => setCurrentScreen('menu')} className="mb-8 text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1.5 text-xs font-black font-black"><ArrowLeft size={16} /> 戻る</button>
+        <h2 className="text-xl font-black mb-8 uppercase tracking-tight tracking-tight">{selectedLevel} トレーニング</h2>
+        <div className="grid grid-cols-2 gap-3 mb-10 text-slate-700 text-slate-700 text-slate-700">
           {Object.keys(categoryConfig).map(catKey => {
             const IconComp = categoryConfig[catKey].icon;
             const stats = progress[selectedLevel].categories[catKey];
@@ -357,13 +356,13 @@ export default function App() {
             return (
               <button key={catKey} disabled={!isSelectable} onClick={() => setupQuiz(selectedLevel, catKey)} className={`p-5 rounded-[1.5rem] border-2 flex flex-col items-center gap-2 transition-all ${isSelectable ? 'border-slate-50 hover:border-indigo-200 bg-slate-50 active:scale-95 shadow-sm' : 'border-slate-50 bg-slate-50/50 text-slate-300 opacity-50 grayscale cursor-not-allowed'}`}>
                 <div className={isSelectable ? 'text-indigo-500' : 'text-slate-300'}><IconComp size={18} /></div>
-                <span className="text-xs font-black tracking-wider">{categoryConfig[catKey].name}</span>
-                {catKey !== 'all' && isSelectable && <span className="text-[9px] font-black bg-white px-2.5 py-1 rounded-full border border-slate-100 shadow-sm">{stats.mastered}/{stats.total}</span>}
+                <span className="text-xs font-black tracking-wider tracking-wider">{categoryConfig[catKey].name}</span>
+                {catKey !== 'all' && isSelectable && <span className="text-[9px] font-black bg-white px-2.5 py-1 rounded-full border border-slate-100 shadow-sm shadow-sm">{stats.mastered}/{stats.total}</span>}
               </button>
             );
           })}
         </div>
-        <button onClick={() => fetchNewQuestions(selectedLevel)} disabled={isGenerating} className="w-full bg-indigo-600 py-4.5 rounded-[1.5rem] text-white font-black text-sm hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-50 active:scale-95">{isGenerating ? <Loader2 size={18} className="animate-spin" /> : <PlusCircle size={18} />}AIで【25問】を一括追加</button>
+        <button onClick={() => fetchNewQuestions(selectedLevel)} disabled={isGenerating} className="w-full bg-indigo-600 py-4.5 rounded-[1.5rem] text-white font-black text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-50 active:scale-95 active:scale-95">{isGenerating ? <Loader2 size={18} className="animate-spin" /> : <PlusCircle size={18} />}AIで【25問】を一括追加</button>
       </div>
     </div>
   );
@@ -374,16 +373,16 @@ export default function App() {
     const catKey = Object.keys(categoryConfig).find(k => (q.category || '').toLowerCase().trim().startsWith(k.toLowerCase())) || 'all';
     const IconComp = categoryConfig[catKey].icon;
     return (
-      <div className="min-h-screen bg-white md:bg-slate-50 p-0 md:p-4 flex items-center justify-center font-sans text-slate-900">
+      <div className="min-h-screen bg-white md:bg-slate-50 p-0 md:p-4 flex items-center justify-center font-sans text-slate-900 text-slate-900">
         <div key={q.id} className="w-full max-w-2xl bg-white md:rounded-3xl shadow-none md:shadow-2xl overflow-hidden min-h-screen md:min-h-0 flex flex-col">
-          <div className="p-7 md:p-10 flex-1 text-slate-800">
+          <div className="p-7 md:p-10 flex-1 text-slate-800 text-slate-800">
             <div className="flex justify-between items-center mb-8">
-              <div className="flex items-center gap-2.5 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-black uppercase tracking-widest"><IconComp size={14} /> {categoryConfig[catKey].name}</div>
-              <div className="text-xs font-black text-slate-300 tracking-widest uppercase">{currentQuestionIndex + 1} / {quizQuestions.length}</div>
+              <div className="flex items-center gap-2.5 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-black uppercase tracking-widest tracking-widest"><IconComp size={14} /> {categoryConfig[catKey].name}</div>
+              <div className="text-xs font-black text-slate-300 tracking-widest uppercase uppercase">{currentQuestionIndex + 1} / {quizQuestions.length}</div>
             </div>
-            {q.passage && <div className="mb-8 p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 text-slate-700 leading-relaxed text-sm md:text-base italic shadow-inner">{q.passage}</div>}
+            {q.passage && <div className="mb-8 p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 text-slate-700 leading-relaxed text-sm md:text-base italic shadow-inner italic shadow-inner">{q.passage}</div>}
             <h2 className="text-xl md:text-2xl font-bold text-slate-800 mb-10 whitespace-pre-wrap leading-tight">{q.question}</h2>
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 text-slate-800">
               {q.options.map((opt, i) => {
                 let style = "border-slate-100 hover:border-indigo-200 text-slate-600";
                 if (showExplanation) {
@@ -393,7 +392,7 @@ export default function App() {
                 }
                 return (
                   <button key={i} disabled={showExplanation} onClick={() => handleAnswer(i)} className={`w-full text-left p-5 rounded-[1.5rem] border-2 transition-all flex items-center gap-5 ${style} ${!showExplanation && 'active:scale-95'}`}>
-                    <span className="w-9 h-9 rounded-[1rem] bg-white border border-slate-200 flex items-center justify-center text-xs font-black shadow-sm shrink-0">{i + 1}</span>
+                    <span className="w-9 h-9 rounded-[1rem] bg-white border border-slate-200 flex items-center justify-center text-xs font-black shadow-sm shrink-0 shadow-sm shrink-0">{i + 1}</span>
                     <span className="text-sm md:text-lg">{opt}</span>
                   </button>
                 );
@@ -401,13 +400,13 @@ export default function App() {
             </div>
           </div>
           {showExplanation && (
-            <div className="p-7 md:p-10 bg-slate-900 text-white animate-in slide-in-from-bottom-full duration-500">
+            <div className="p-7 md:p-10 bg-slate-900 text-white animate-in slide-in-from-bottom-full duration-500 duration-500">
               <div className="flex items-center gap-3 mb-5">
                 {userSelectedOption === q.answer ? <CheckCircle className="text-green-400" size={24} /> : <XCircle className="text-red-400" size={24} />}
-                <span className="font-black text-xl tracking-widest uppercase">{userSelectedOption === q.answer ? '正解' : '不正解'}</span>
+                <span className="font-black text-xl tracking-widest uppercase uppercase">{userSelectedOption === q.answer ? '正解' : '不正解'}</span>
               </div>
               <p className="text-slate-400 text-sm leading-relaxed mb-8 italic">{q.explanation}</p>
-              <button onClick={nextQuestion} className="w-full bg-indigo-600 py-5 rounded-[1.5rem] font-black tracking-widest hover:bg-indigo-500 active:scale-95 transition-all shadow-xl text-base">{currentQuestionIndex + 1 < quizQuestions.length ? '次の問題へ' : '結果を見る'}</button>
+              <button onClick={nextQuestion} className="w-full bg-indigo-600 py-5 rounded-[1.5rem] font-black tracking-widest hover:bg-indigo-500 active:scale-95 transition-all shadow-xl shadow-xl text-base">{currentQuestionIndex + 1 < quizQuestions.length ? '次の問題へ' : '結果を見る'}</button>
             </div>
           )}
         </div>
@@ -418,14 +417,14 @@ export default function App() {
   const renderResult = () => (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-900 text-center">
       <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-12 border border-slate-100">
-        <div className="w-24 h-24 bg-yellow-50 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8 border-4 border-yellow-100 rotate-3 shadow-lg">
-           <Trophy size={48} className="text-yellow-500" />
+        <div className="w-24 h-24 bg-yellow-50 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8 border-4 border-yellow-100 rotate-3 shadow-lg shadow-lg">
+           <Trophy size={48} className="text-yellow-500 text-yellow-500" />
         </div>
         <h2 className="text-6xl font-black text-slate-800 mb-2">{score} <span className="text-xl text-slate-400">/ {quizQuestions.length}</span></h2>
-        <p className="text-slate-400 font-black mb-12 tracking-[0.2em] uppercase text-xs">{selectedLevel} • {categoryConfig[selectedCategory].name}</p>
+        <p className="text-slate-400 font-black mb-12 tracking-[0.2em] uppercase text-xs tracking-widest">{selectedLevel} • {categoryConfig[selectedCategory].name}</p>
         <div className="grid gap-4">
-          <button onClick={() => setupQuiz(selectedLevel, selectedCategory)} className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black tracking-widest hover:bg-black transition-all shadow-xl active:scale-95 text-center">再挑戦</button>
-          <button onClick={() => setCurrentScreen('category')} className="w-full bg-white border-2 border-slate-200 text-slate-400 py-5 rounded-[1.5rem] font-black tracking-widest hover:bg-slate-50 transition-all text-center">分野を変える</button>
+          <button onClick={() => setupQuiz(selectedLevel, selectedCategory)} className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black tracking-widest hover:bg-black transition-all shadow-xl shadow-xl active:scale-95">再挑戦</button>
+          <button onClick={() => setCurrentScreen('category')} className="w-full bg-white border-2 border-slate-200 text-slate-400 py-5 rounded-[1.5rem] font-black tracking-widest hover:bg-slate-50 transition-all">分野を変える</button>
         </div>
       </div>
     </div>
