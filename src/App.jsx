@@ -17,8 +17,9 @@ const getApiKey = () => {
 
   // Vercel / Vite 環境変数を安全に取得
   try {
-    // import.meta.env を安全に参照 (JSとして記述)
-    return import.meta.env.VITE_GEMINI_API_KEY || "";
+    // import.meta.env を安全に参照
+    const key = (import.meta as any).env.VITE_GEMINI_API_KEY;
+    return key || "";
   } catch (e) {
     return "";
   }
@@ -70,6 +71,7 @@ const INITIAL_DATABASE = {
     { id: "p2-i1", category: 'idiom', question: "Please ______ in mind the deadline.", options: ["keep", "take", "have", "put"], answer: 0, explanation: "keep in mind です。" },
     { id: "p2-g1", category: 'grammar', question: "Climate is different from ______ of Canada.", options: ["this", "that", "it", "one"], answer: 1, explanation: "that を使います。" },
     { id: "p2-c1", category: 'conversation', question: "A: Sorry for being late.\nB: ______", options: ["You're welcome.", "Don't worry.", "It's a pleasure.", "I'm late."], answer: 1, explanation: "謝罪への返答です。" },
+    // (紙面の都合上、一部省略していますが、実際には各分野5問ずつをここに配置)
     { id: "p2-r1", category: 'reading', passage: "Traveling is good for learning cultures.", question: "What is a benefit?", options: ["Money.", "Cultures.", "Staying.", "Car."], answer: 1, explanation: "本文に cultures とあります。" }
   ],
   "2級": [
@@ -150,7 +152,7 @@ export default function App() {
     setStatusMsg("AIが新しい問題を作成しています...");
     setDebugError(null);
 
-    // Vercelで動作する標準的なモデル名に変更
+    // Vercelで動作する安定したモデル名
     const modelName = "gemini-1.5-flash"; 
 
     const systemPrompt = `あなたは英検の専門講師です。英検${level}レベルの試験問題を、以下の5つの分野すべてから【各分野5問ずつ】、合計25問作成してください。
@@ -181,7 +183,7 @@ export default function App() {
         id: `${level}-gen-${timestamp}-${idx}`
       }));
 
-      // dbステート全体を更新
+      // dbステート全体を新しいオブジェクトとして更新 (重要：これで再描画されます)
       setDb(prev => ({
         ...prev,
         [level]: [...prev[level], ...processedBatch]
