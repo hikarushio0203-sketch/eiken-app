@@ -19,6 +19,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // appIdのサニタイズ：スラッシュが含まれるとFirestoreのパスが壊れるため、英数字以外を除去
+// これにより「Invalid document reference」エラーを解決します
 const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'eiken-pro-app';
 const appId = rawAppId.replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -26,6 +27,7 @@ const getApiKey = () => {
   const canvasKey = ""; 
   if (canvasKey && canvasKey.length > 10) return canvasKey;
   try {
+    // Vercelに設定した環境変数を読み込みます
     return import.meta.env.VITE_GEMINI_API_KEY || "";
   } catch (e) {
     return "";
@@ -135,6 +137,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   // カテゴリー定義（アイコンをコンポーネントとして格納）
+  // React Childエラーを避けるため、アイコンをコンポーネント参照として定義
   const categoryConfig = {
     all: { name: "全分野", icon: Target },
     vocab: { name: "語彙", icon: BookOpen },
@@ -171,7 +174,7 @@ export default function App() {
    */
   useEffect(() => {
     if (!user) return;
-    // docRefにパスの全階層を渡す際、偶数のセグメントが必要（artifacts/ID/users/UID/studyData/state = 6つ）
+    // docRefにパスの全階層を渡す。スラッシュが含まれないappIdを使用
     const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'studyData', 'state');
     
     const loadData = async () => {
@@ -227,12 +230,12 @@ export default function App() {
     setIsGenerating(true);
     setStatusMsg("AIが25問の新しい問題を作成中...");
 
-    // 最新のGeminiモデルを指定
-    const modelName = "gemini-2.5-flash-preview-09-2025"; 
+    // 最新のGeminiモデルを指定し、エラーを防ぐため設定を安定版に固定
+    const modelName = "gemini-1.5-flash"; 
     const systemPrompt = `You are an Eiken expert. Generate exactly 25 new Eiken ${level} exam questions. Provide 5 questions for each category: 'vocab', 'idiom', 'grammar', 'conversation', 'reading'. Format as JSON: { "questions": [ { "id": "unique", "category": "vocab/idiom/grammar/conversation/reading", "passage": "text", "question": "text", "options": ["A","B","C","D"], "answer": 0, "explanation": "Japanese explanation" } ] }`;
 
     try {
-      // APIバージョンをv1betaにして最新の機能を使用
+      // APIバージョンを v1beta にして最新の機能を使用
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -242,7 +245,11 @@ export default function App() {
         })
       });
 
-      if (!response.ok) throw new Error("AI通信エラーが発生しました。");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || "AI通信エラー");
+      }
+
       const data = await response.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       const cleanJson = rawText.replace(/```json|```/g, '').trim();
@@ -257,7 +264,7 @@ export default function App() {
       setTimeout(() => setStatusMsg(null), 3000);
     } catch (err) {
       console.error(err);
-      setStatusMsg("エラー：AIの通信に失敗しました。");
+      setStatusMsg(`エラー：${err.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -310,7 +317,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-center text-slate-800">
         <div className="animate-pulse">
           <Loader2 className="animate-spin mx-auto text-indigo-600 mb-4" size={40} />
-          <p className="font-bold">データを同期中...</p>
+          <p className="font-bold font-sans tracking-tight">データを同期中...</p>
         </div>
       </div>
     );
@@ -329,7 +336,7 @@ export default function App() {
             <button key={level} onClick={() => { setSelectedLevel(level); setCurrentScreen('category'); }} className="w-full bg-slate-50 border border-slate-100 hover:border-indigo-400 p-5 rounded-[2rem] flex justify-between items-center transition-all group shadow-sm active:scale-95">
               <div>
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{level}</span>
-                <div className="text-lg font-bold group-hover:text-indigo-600">学習開始</div>
+                <div className="text-lg font-bold">学習開始</div>
               </div>
               <div className="flex flex-col items-end text-right">
                 <div className="text-base font-black text-indigo-600">{progress[level].percent}%</div>
