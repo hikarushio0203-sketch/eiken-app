@@ -14,31 +14,32 @@ import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestor
  * ==========================================
  */
 
-// グローバル変数の未定義エラーを完全に防ぐガード
-const getFirebaseConfig = () => {
+// グローバル変数の未定義エラー（真っ白画面の原因）を完全に防ぐガード
+const safeGetConfig = () => {
   try {
     if (typeof __firebase_config !== 'undefined' && __firebase_config) {
       return JSON.parse(__firebase_config);
     }
   } catch (e) {
-    console.warn("Firebase config not available in this environment.");
+    console.warn("Firebase config is not defined. Offline mode enabled.");
   }
   return null;
 };
 
-const config = getFirebaseConfig();
-const app = config ? initializeApp(config) : null;
+const firebaseConfig = safeGetConfig();
+const app = firebaseConfig ? initializeApp(firebaseConfig) : null;
 const auth = app ? getAuth(app) : null;
 const db = app ? getFirestore(app) : null;
 
-// appId内のスラッシュを確実に除去（セグメント数エラーを防止）
-const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'eiken-pro-v1';
+// appId内のスラッシュをアンダースコアに置換（パスエラー防止）
+const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'eiken_pro_stable';
 const appId = rawAppId.replace(/\//g, '_');
 
 const getApiKey = () => {
   const canvasKey = ""; 
   if (canvasKey && canvasKey.length > 10) return canvasKey;
   try {
+    // Vercel設定の環境変数を参照
     return import.meta.env.VITE_GEMINI_API_KEY || "";
   } catch (e) {
     return "";
@@ -46,10 +47,10 @@ const getApiKey = () => {
 };
 const apiKey = getApiKey();
 
-// 分母を25にするための初期データ
+// 25問を確実に保証する初期データ
 const INITIAL_DATABASE = {
   "3級": [
-    { id: "3-v1", category: 'vocab', question: "I want to ______ a doctor in the future.", options: ["come", "become", "go", "make"], answer: 1, explanation: "～になるは become です。" },
+    { id: "3-v1", category: 'vocab', question: "I want to ______ a doctor in the future.", options: ["come", "become", "go", "make"], answer: 1, explanation: "～になる、は become です。" },
     { id: "3-v2", category: 'vocab', question: "The sky is very ______ today.", options: ["fine", "find", "fire", "five"], answer: 0, explanation: "晴れは fine です。" },
     { id: "3-v3", category: 'vocab', question: "My mother works at a ______.", options: ["hospital", "hospitality", "hose", "horse"], answer: 0, explanation: "病院は hospital です。" },
     { id: "3-v4", category: 'vocab', question: "Do you know the ______ of this word?", options: ["mean", "meaning", "meant", "means"], answer: 1, explanation: "意味は meaning です。" },
@@ -73,35 +74,34 @@ const INITIAL_DATABASE = {
     { id: "3-r2", category: 'reading', passage: "Emi saw temples in Kyoto. She bought cookies for her family.", question: "What did Emi do?", options: ["She saw temples.", "She stayed home.", "She ate cookies.", "She saw Kyoto."], answer: 0, explanation: "saw temples とあります。" },
     { id: "3-r3", category: 'reading', passage: "It was rainy yesterday. Tom read a book about space.", question: "Why did Tom stay home?", options: ["Sunny.", "Rainy.", "Tired.", "Space."], answer: 1, explanation: "It was rainy とあります。" },
     { id: "3-r4", category: 'reading', passage: "Maki is in the tennis club. She practices every day.", question: "What club is Maki in?", options: ["Music.", "Tennis.", "High school.", "Soccer."], answer: 1, explanation: "tennis club とあります。" },
-    { id: "3-r5", category: 'reading', passage: "Green Park is near the station. People walk dogs there.", question: "Where is Green Park?", options: ["Station.", "Dog.", "Beautiful.", "Spring."], answer: 0, explanation: "near the station です。" }
+    { id: "3-r5", category: 'reading', passage: "Green Park is near the station. People walk dogs there.", question: "Where is Green Park?", options: ["Near the station.", "In the dog.", "In the beautiful.", "Near the spring."], answer: 0, explanation: "near the station です。" }
   ],
   "準2級": [
-    // 準2級 25問
-    { id: "p2-v1", category: 'vocab', question: "Introduce the law.", options: ["introduce", "increase", "invite", "invent"], answer: 0, explanation: "導入する。" },
+    { id: "p2-v1", category: 'vocab', question: "The government decided to ______ the new law.", options: ["introduce", "increase", "invite", "invent"], answer: 0, explanation: "導入する。" },
     { id: "p2-v2", category: 'vocab', question: "Improve skills.", options: ["improve", "import", "impress", "implore"], answer: 0, explanation: "向上させる。" },
-    { id: "p2-v3", category: 'vocab', question: "Factory produces ______ products.", options: ["electric", "election", "elegant", "element"], answer: 0, explanation: "電気の。" },
-    { id: "p2-v4", category: 'vocab', question: "He has a ______ knowledge of history.", options: ["broad", "board", "bored", "boat"], answer: 0, explanation: "幅広い。" },
-    { id: "p2-v5", category: 'vocab', question: "Medicine will ______ your pain.", options: ["reduce", "produce", "induce", "introduce"], answer: 0, explanation: "和らげる。" },
     { id: "p2-i1", category: 'idiom', question: "Keep in mind.", options: ["in", "on", "at", "to"], answer: 0, explanation: "覚えておく。" },
-    { id: "p2-i2", category: 'idiom', question: "Game was put ______ due to rain.", options: ["off", "on", "out", "away"], answer: 0, explanation: "延期する。" },
-    { id: "p2-i3", category: 'idiom', question: "I ran ______ an old friend at station.", options: ["into", "onto", "out", "off"], answer: 0, explanation: "偶然出会う。" },
-    { id: "p2-i4", category: 'idiom', question: "Deal ______ problems.", options: ["with", "to", "at", "for"], answer: 0, explanation: "対処する。" },
-    { id: "p2-i5", category: 'idiom', question: "He didn't show ______.", options: ["up", "off", "on", "down"], answer: 0, explanation: "現れる。" },
-    { id: "p2-g1", category: 'grammar', question: "Climate is different from ______ of Canada.", options: ["this", "that", "it", "one"], answer: 1, explanation: "代名詞 that。" },
-    { id: "p2-g2", category: 'grammar', question: "Believed ______ rich when young.", options: ["to be", "to have been", "being", "been"], answer: 1, explanation: "完了不定詞。" },
-    { id: "p2-g3", category: 'grammar', question: "It is typical ______ him to be late.", options: ["of", "for", "to", "at"], answer: 0, explanation: "性質のof。" },
-    { id: "p2-g4", category: 'grammar', question: "Unless you ______.", options: ["hurry", "don't hurry", "will hurry", "hurried"], answer: 0, explanation: "unless内現在形。" },
-    { id: "p2-g5", category: 'grammar', question: "Had bike ______.", options: ["repair", "repaired", "repairing", "to repair"], answer: 1, explanation: "受動使役。" },
-    { id: "p2-c1", category: 'conversation', question: "Sorry for late. ______", options: ["Don't worry.", "Welcome.", "Late.", "Pleasure."], answer: 0, explanation: "返答。" },
-    { id: "p2-c2", category: 'conversation', question: "Mind if I open? ______", options: ["No, go ahead.", "Yes, please.", "Open it.", "I mind."], answer: 0, explanation: "許可。" },
-    { id: "p2-c3", category: 'conversation', question: "Way to bank? ______", options: ["I'm new here.", "It's big.", "I'm a student.", "Go home."], answer: 0, explanation: "知らない時。" },
-    { id: "p2-c4", category: 'conversation', question: "Job? ______", options: ["Engineer.", "Living here.", "I like work.", "By car."], answer: 0, explanation: "職業。" },
-    { id: "p2-c5", category: 'conversation', question: "How is steak? ______", options: ["Delicious.", "Fine.", "Beef.", "Yes."], answer: 0, explanation: "感想。" },
+    { id: "p2-g1", category: 'grammar', question: "That of Canada.", options: ["this", "that", "it", "one"], answer: 1, explanation: "代名詞 that。" },
+    { id: "p2-c1", category: 'conversation', question: "Sorry for late.", options: ["Don't worry.", "Welcome.", "Late.", "Pleasure."], answer: 0, explanation: "返答。" },
     { id: "p2-r1", category: 'reading', passage: "Travel is good to learn cultures.", question: "Benefit?", options: ["Culture.", "Money.", "Staying.", "Car."], answer: 0, explanation: "文化習得。" },
+    { id: "p2-v3", category: 'vocab', question: "Factory produces ______ products.", options: ["electric", "election", "elegant", "element"], answer: 0, explanation: "電気の。" },
+    { id: "p2-i2", category: 'idiom', question: "Game was put ______ due to rain.", options: ["off", "on", "out", "away"], answer: 0, explanation: "延期する。" },
+    { id: "p2-g2", category: 'grammar', question: "Believed ______ rich when young.", options: ["to be", "to have been", "being", "been"], answer: 1, explanation: "完了不定詞。" },
     { id: "p2-r2", category: 'reading', passage: "Forests provide oxygen.", question: "Why important?", options: ["Oxygen.", "Cars.", "Computers.", "Humans."], answer: 0, explanation: "酸素供給。" },
+    { id: "p2-v4", category: 'vocab', question: "He has a ______ knowledge of history.", options: ["broad", "board", "bored", "boat"], answer: 0, explanation: "幅広い。" },
+    { id: "p2-i3", category: 'idiom', question: "I ran ______ an old friend at station.", options: ["into", "onto", "out", "off"], answer: 0, explanation: "偶然出会う。" },
+    { id: "p2-g3", category: 'grammar', question: "It is typical ______ him to be late.", options: ["of", "for", "to", "at"], answer: 0, explanation: "性質のof。" },
+    { id: "p2-c2", category: 'conversation', question: "Mind if I open? ______", options: ["No, go ahead.", "Yes, please.", "Open it.", "I mind."], answer: 0, explanation: "許可。" },
     { id: "p2-r3", category: 'reading', passage: "Online is convenient.", question: "Why popular?", options: ["Convenient.", "Fast.", "Cheap.", "Rain."], answer: 0, explanation: "利便性。" },
+    { id: "p2-v5", category: 'vocab', question: "Medicine will ______ your pain.", options: ["reduce", "produce", "induce", "introduce"], answer: 0, explanation: "和らげる。" },
+    { id: "p2-i4", category: 'idiom', question: "Deal ______ problems.", options: ["with", "to", "at", "for"], answer: 0, explanation: "対処する。" },
+    { id: "p2-g4", category: 'grammar', question: "Unless you ______.", options: ["hurry", "don't hurry", "will hurry", "hurried"], answer: 0, explanation: "unless内現在形。" },
+    { id: "p2-c3", category: 'conversation', question: "Way to bank? ______", options: ["I'm new here.", "It's big.", "I'm a student.", "Go home."], answer: 0, explanation: "知らない時。" },
     { id: "p2-r4", category: 'reading', passage: "Festivals have food stalls.", question: "Feature?", options: ["Food.", "Tests.", "Rain.", "Old cars."], answer: 0, explanation: "食べ物。" },
-    { id: "p2-r5", category: 'reading', passage: "Recycle helps environment.", question: "How?", options: ["Reduce waste.", "Make waste.", "Buy paper.", "Clean."], answer: 0, explanation: "ゴミ削減。" }
+    { id: "p2-i5", category: 'idiom', question: "He didn't show ______.", options: ["up", "off", "on", "down"], answer: 0, explanation: "現れる。" },
+    { id: "p2-g5", category: 'grammar', question: "Had bike ______.", options: ["repair", "repaired", "repairing", "to repair"], answer: 1, explanation: "受動使役。" },
+    { id: "p2-c4", category: 'conversation', question: "Job? ______", options: ["Engineer.", "Living here.", "I like work.", "By car."], answer: 0, explanation: "職業回答。" },
+    { id: "p2-r5", category: 'reading', passage: "Recycle helps environment.", question: "How?", options: ["Reduce waste.", "Make waste.", "Buy paper.", "Clean."], answer: 0, explanation: "ゴミ削減。" },
+    { id: "p2-c5", category: 'conversation', question: "How is steak? ______", options: ["Delicious.", "Fine.", "Beef.", "Yes."], answer: 0, explanation: "感想。" }
   ],
   "2級": [
     // 2級 25問
@@ -149,7 +149,7 @@ export default function App() {
   const [statusMsg, setStatusMsg] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // カテゴリー定義 (アイコンをコンポーネントとして格納)
+  // アイコンをコンポーネント参照として定義 (Error #418 対策)
   const categoryConfig = {
     all: { name: "全分野", icon: Target },
     vocab: { name: "語彙", icon: BookOpen },
@@ -175,7 +175,7 @@ export default function App() {
           await signInAnonymously(auth);
         }
       } catch (e) {
-        console.error("Auth failed", e);
+        console.error("Auth failed:", e);
       }
     };
     initAuth();
@@ -192,7 +192,7 @@ export default function App() {
       return;
     }
     
-    // パスセグメントが偶数になるように指定 (artifacts/ID/users/UID/studyData/state = 6つ)
+    // パスセグメントが偶数になるように指定 (artifacts/ID/users/UID/studyData/state)
     const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'studyData', 'state');
     
     const unsubscribe = onSnapshot(docRef, (snap) => {
@@ -203,7 +203,7 @@ export default function App() {
       }
       setIsLoading(false);
     }, (err) => {
-      console.error("Firestore Error:", err);
+      console.error("Cloud data error:", err);
       setIsLoading(false);
     });
 
@@ -220,7 +220,7 @@ export default function App() {
         updatedAt: Date.now()
       }, { merge: true });
     } catch (e) {
-      console.error("Save Error:", e);
+      console.error("Save failed:", e);
     }
   };
 
@@ -246,37 +246,35 @@ export default function App() {
     setIsGenerating(true);
     setStatusMsg("AIが25問の新しい問題を作成中...");
 
-    // Vercelで動作する最新の安定モデル
     const modelName = "gemini-1.5-flash"; 
-    const systemPrompt = `You are an Eiken expert. Generate exactly 25 new Eiken ${level} exam questions. Provide 5 questions for each category: 'vocab', 'idiom', 'grammar', 'conversation', 'reading'. Format as JSON: { "questions": [ { "id": "unique_id", "category": "vocab/idiom/grammar/conversation/reading", "passage": "text if reading", "question": "text", "options": ["A","B","C","D"], "answer": 0, "explanation": "Japanese explanation" } ] }`;
+    const systemPrompt = `You are an Eiken expert. Generate exactly 25 new Eiken ${level} exam questions. Provide 5 questions for each category: 'vocab', 'idiom', 'grammar', 'conversation', 'reading'. Format as JSON: { "questions": [ { "id": "unique", "category": "vocab/idiom/grammar/conversation/reading", "passage": "text", "question": "text", "options": ["A","B","C","D"], "answer": 0, "explanation": "Japanese explanation" } ] }`;
 
     try {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          contents: [{ parts: [{ text: systemPrompt }] }],
-          generationConfig: { responseMimeType: "application/json" }
-        })
+        body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
       });
 
-      if (!response.ok) throw new Error("AI通信エラー");
+      if (!response.ok) throw new Error("AI communication failed");
       const data = await response.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AI応答形式エラー");
+      if (!jsonMatch) throw new Error("Invalid AI format");
       const parsed = JSON.parse(jsonMatch[0]);
       
       const timestamp = Date.now();
       const processedBatch = parsed.questions.map((q, idx) => ({ ...q, id: `${level}-gen-${timestamp}-${idx}` }));
+
       const newDb = { ...dbState, [level]: [...dbState[level], ...processedBatch] };
       setDbState(newDb);
       await saveToCloud(newDb, null);
-      setStatusMsg("成功！問題が保存されました。");
+      
+      setStatusMsg("成功！進捗が保存されました。");
       setTimeout(() => setStatusMsg(null), 3000);
     } catch (err) {
       console.error(err);
-      setStatusMsg(`エラー：${err.message}`);
+      setStatusMsg("エラーが発生しました。");
     } finally {
       setIsGenerating(false);
     }
@@ -324,11 +322,6 @@ export default function App() {
     }
   };
 
-  if (!app && isLoading) {
-    // Firebase設定がない場合、isLoadingのまま止まるのを防ぐ
-    setIsLoading(false);
-  }
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
@@ -341,54 +334,86 @@ export default function App() {
   }
 
   const renderMenu = () => (
-    <div className="min-h-screen p-4 flex flex-col items-center justify-center font-sans bg-slate-50 text-slate-800">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-slate-100 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-20 text-[10px] flex items-center gap-1 font-mono">
+    <div className="min-h-screen p-4 flex flex-col items-center justify-center font-sans">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-slate-100 relative overflow-hidden text-center">
+        <div className="absolute top-0 right-0 p-4 opacity-30 text-[10px] flex items-center gap-1 font-mono">
           <User size={10} /> {user ? user.uid.substring(0,8) : 'OFFLINE'}
         </div>
         <div className="flex items-center justify-center gap-3 mb-10 text-indigo-600">
           <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg"><Settings2 size={24} /></div>
-          <h1 className="text-2xl font-black tracking-tight italic uppercase">Eiken Pro</h1>
+          <h1 className="text-2xl font-black tracking-tight italic uppercase text-slate-800">Eiken Pro</h1>
         </div>
-        <div className="space-y-4 text-left">
+
+        <div className="space-y-4 text-left text-slate-800">
           {Object.keys(dbState).map(level => (
-            <button key={level} onClick={() => { setSelectedLevel(level); setCurrentScreen('category'); }} className="w-full bg-slate-50 border border-slate-100 hover:border-indigo-400 p-5 rounded-[2rem] flex justify-between items-center transition-all group shadow-sm active:scale-95">
+            <button
+              key={level}
+              onClick={() => { setSelectedLevel(level); setCurrentScreen('category'); }}
+              className="w-full bg-slate-50 border border-slate-100 hover:border-indigo-400 p-5 rounded-[2rem] flex justify-between items-center transition-all group shadow-sm active:scale-95"
+            >
               <div>
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{level}</span>
-                <div className="text-lg font-bold group-hover:text-indigo-600">学習開始</div>
+                <div className="text-lg font-bold">学習開始</div>
               </div>
               <div className="flex flex-col items-end">
                 <div className="text-base font-black text-indigo-600">{progress[level].percent}%</div>
-                <div className="text-[10px] text-slate-400 font-bold">{progress[level].mastered}/{progress[level].total} 問</div>
+                <div className="text-[10px] text-slate-400 font-bold">{progress[level].mastered}/{progress[level].total} 問習得</div>
               </div>
             </button>
           ))}
         </div>
-        {statusMsg && <div className="mt-8 p-3.5 bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-bold rounded-2xl animate-pulse text-center">{statusMsg}</div>}
+        
+        {statusMsg && <div className="mt-8 p-3.5 bg-indigo-50 border border-indigo-100 text-indigo-600 text-[11px] font-bold rounded-2xl text-center animate-pulse">{statusMsg}</div>}
       </div>
     </div>
   );
 
   const renderCategorySelect = () => (
-    <div className="min-h-screen p-4 flex flex-col items-center justify-center font-sans bg-slate-50 text-slate-800">
+    <div className="min-h-screen p-4 flex flex-col items-center justify-center font-sans text-slate-800">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 border border-slate-100 text-center">
-        <button onClick={() => setCurrentScreen('menu')} className="mb-8 text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1.5 text-xs font-black"><ArrowLeft size={16} /> 戻る</button>
+        <button onClick={() => setCurrentScreen('menu')} className="mb-8 text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1.5 text-xs font-black">
+          <ArrowLeft size={16} /> 戻る
+        </button>
         <h2 className="text-xl font-black mb-8 uppercase tracking-tight">{selectedLevel} トレーニング</h2>
+        
         <div className="grid grid-cols-2 gap-3 mb-10 text-slate-700">
           {Object.keys(categoryConfig).map(catKey => {
-            const Icon = categoryConfig[catKey].icon;
+            const cat = categoryConfig[catKey];
+            const Icon = cat.icon;
             const stats = progress[selectedLevel].categories[catKey];
             const isSelectable = catKey === 'all' || (stats && stats.total > 0);
+
             return (
-              <button key={catKey} disabled={!isSelectable} onClick={() => setupQuiz(selectedLevel, catKey)} className={`p-5 rounded-[1.5rem] border-2 flex flex-col items-center gap-2 transition-all ${isSelectable ? 'border-slate-50 hover:border-indigo-200 bg-slate-50 active:scale-95 shadow-sm' : 'border-slate-50 bg-slate-50/50 text-slate-300 opacity-50 grayscale cursor-not-allowed'}`}>
+              <button
+                key={catKey}
+                disabled={!isSelectable}
+                onClick={() => setupQuiz(selectedLevel, catKey)}
+                className={`p-5 rounded-[1.5rem] border-2 flex flex-col items-center gap-2 transition-all ${
+                  isSelectable 
+                  ? 'border-slate-50 hover:border-indigo-200 bg-slate-50 active:scale-95 shadow-sm' 
+                  : 'border-slate-50 bg-slate-50/50 text-slate-300 opacity-50 grayscale cursor-not-allowed'
+                }`}
+              >
                 <div className={isSelectable ? 'text-indigo-500' : 'text-slate-300'}><Icon size={18} /></div>
-                <span className="text-xs font-black tracking-wider">{categoryConfig[catKey].name}</span>
-                {catKey !== 'all' && isSelectable && <span className="text-[9px] font-black bg-white px-2.5 py-1 rounded-full border border-slate-100 shadow-sm">{stats.mastered}/{stats.total}</span>}
+                <span className="text-xs font-black tracking-wider">{cat.name}</span>
+                {catKey !== 'all' && isSelectable && (
+                  <span className="text-[9px] font-black bg-white px-2.5 py-1 rounded-full border border-slate-100 shadow-sm">
+                    {stats.mastered}/{stats.total}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
-        <button onClick={() => fetchNewQuestions(selectedLevel)} disabled={isGenerating} className="w-full bg-indigo-600 py-4.5 rounded-[1.5rem] text-white font-black text-sm hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-50 active:scale-95">{isGenerating ? <Loader2 size={18} className="animate-spin" /> : <PlusCircle size={18} />}AIで【25問】を一括追加</button>
+
+        <button
+          onClick={() => fetchNewQuestions(selectedLevel)}
+          disabled={isGenerating}
+          className="w-full bg-indigo-600 py-4.5 rounded-[1.5rem] text-white font-black text-sm hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-50 active:scale-95"
+        >
+          {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <PlusCircle size={18} />}
+          AIで【25問】を一括追加
+        </button>
       </div>
     </div>
   );
@@ -396,19 +421,26 @@ export default function App() {
   const renderQuiz = () => {
     const q = quizQuestions[currentQuestionIndex];
     if (!q) return null;
-    const catInfo = categoryConfig[Object.keys(categoryConfig).find(k => (q.category || '').toLowerCase().trim().startsWith(k.toLowerCase()))] || categoryConfig.all;
-    const Icon = catInfo.icon;
+    const currentCatInfo = categoryConfig[Object.keys(categoryConfig).find(k => (q.category || '').toLowerCase().trim().startsWith(k.toLowerCase()))] || categoryConfig.all;
+    const CatIcon = currentCatInfo.icon;
+
     return (
-      <div className="min-h-screen bg-slate-50 p-0 md:p-4 flex items-center justify-center font-sans text-slate-900">
-        <div key={q.id} className="w-full max-w-2xl bg-white md:rounded-3xl shadow-xl overflow-hidden min-h-screen md:min-h-0 flex flex-col">
+      <div className="min-h-screen bg-white md:bg-slate-50 p-0 md:p-4 flex items-center justify-center font-sans text-slate-900">
+        <div key={q.id} className="w-full max-w-2xl bg-white md:rounded-3xl shadow-none md:shadow-2xl overflow-hidden min-h-screen md:min-h-0 flex flex-col">
           <div className="p-7 md:p-10 flex-1">
             <div className="flex justify-between items-center mb-8">
-              <div className="flex items-center gap-2.5 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-black uppercase tracking-widest"><Icon size={14} /> {catInfo.name}</div>
+              <div className="flex items-center gap-2.5 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-black uppercase tracking-widest">
+                <CatIcon size={14} /> {currentCatInfo.name}
+              </div>
               <div className="text-xs font-black text-slate-300 tracking-widest uppercase">{currentQuestionIndex + 1} / {quizQuestions.length}</div>
             </div>
-            {q.passage && <div className="mb-8 p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 text-slate-700 leading-relaxed text-sm md:text-base italic shadow-inner">{q.passage}</div>}
+            {q.passage && (
+              <div className="mb-8 p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 text-slate-700 leading-relaxed text-sm md:text-base italic shadow-inner">
+                {q.passage}
+              </div>
+            )}
             <h2 className="text-xl md:text-2xl font-bold text-slate-800 mb-10 whitespace-pre-wrap leading-tight">{q.question}</h2>
-            <div className="space-y-3.5 text-slate-800">
+            <div className="space-y-3.5">
               {q.options.map((opt, i) => {
                 let style = "border-slate-100 hover:border-indigo-200 text-slate-600";
                 if (showExplanation) {
@@ -429,7 +461,7 @@ export default function App() {
             <div className="p-7 md:p-10 bg-slate-900 text-white animate-in slide-in-from-bottom-full duration-500">
               <div className="flex items-center gap-3 mb-5">
                 {userSelectedOption === q.answer ? <CheckCircle className="text-green-400" size={24} /> : <XCircle className="text-red-400" size={24} />}
-                <span className="font-black text-xl tracking-widest uppercase">{userSelectedOption === q.answer ? 'Correct' : 'Incorrect'}</span>
+                <span className="font-black text-xl tracking-widest uppercase text-center">{userSelectedOption === q.answer ? 'Correct' : 'Incorrect'}</span>
               </div>
               <p className="text-slate-400 text-sm leading-relaxed mb-8 italic">{q.explanation}</p>
               <button onClick={nextQuestion} className="w-full bg-indigo-600 py-5 rounded-[1.5rem] font-black tracking-widest hover:bg-indigo-500 active:scale-95 transition-all shadow-xl text-base">{currentQuestionIndex + 1 < quizQuestions.length ? 'NEXT QUESTION' : 'SEE RESULTS'}</button>
@@ -443,7 +475,9 @@ export default function App() {
   const renderResult = () => (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-900 text-center">
       <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-12 border border-slate-100">
-        <div className="w-24 h-24 bg-yellow-50 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8 border-4 border-yellow-100 rotate-3 shadow-lg"><Trophy size={48} className="text-yellow-500" /></div>
+        <div className="w-24 h-24 bg-yellow-50 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8 border-4 border-yellow-100 rotate-3 shadow-lg">
+           <Trophy size={48} className="text-yellow-500" />
+        </div>
         <h2 className="text-6xl font-black text-slate-800 mb-2">{score} <span className="text-xl text-slate-400">/ {quizQuestions.length}</span></h2>
         <p className="text-slate-400 font-black mb-12 tracking-[0.2em] uppercase text-xs">{selectedLevel} • {categoryConfig[selectedCategory].name}</p>
         <div className="grid gap-4">
@@ -455,11 +489,11 @@ export default function App() {
   );
 
   return (
-    <div className="font-sans">
+    <>
       {currentScreen === 'menu' && renderMenu()}
       {currentScreen === 'category' && renderCategorySelect()}
       {currentScreen === 'quiz' && renderQuiz()}
       {currentScreen === 'result' && renderResult()}
-    </div>
+    </>
   );
 }
