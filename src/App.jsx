@@ -104,7 +104,7 @@ const INITIAL_DATABASE = {
     { id: "p2-c2", category: 'conversation', question: "Mind if I open? ______", options: ["No, go ahead.", "Yes, please.", "Open it.", "I mind."], answer: 0, explanation: "許可。" },
     { id: "p2-c3", category: 'conversation', question: "Way to bank? ______", options: ["I'm new here.", "It's big.", "I'm a student.", "Go home."], answer: 0, explanation: "知らない時。" },
     { id: "p2-c4", category: 'conversation', question: "What is your job? ______", options: ["Engineer.", "Living here.", "I like work.", "By car."], answer: 0, explanation: "職業回答。" },
-    { id: "p2-c5", category: 'conversation', question: "How is steak? ______", options: ["Delicious.", "Fine.", "Beef.", "Yes."], answer: 0, explanation: "感想。" },
+    { id: "p2-c5", category: 'conversation', question: "How is steak? ______", options: ["Delicious.", "Fine.", "Beef.", "Yes."], answer: 0, explanation: "感想回答。" },
     { id: "p2-r1", category: 'reading', passage: "Travel is good to learn cultures.", question: "Benefit?", options: ["Culture.", "Money.", "Staying.", "Car."], answer: 0, explanation: "文化習得。" },
     { id: "p2-r2", category: 'reading', passage: "Forests provide oxygen.", question: "Why important?", options: ["Oxygen.", "Cars.", "Computers.", "Humans."], answer: 0, explanation: "酸素供給。" },
     { id: "p2-r3", category: 'reading', passage: "Online is convenient.", question: "Why popular?", options: ["Convenient.", "Fast.", "Cheap.", "Rain."], answer: 0, explanation: "利便性。" },
@@ -241,61 +241,91 @@ export default function App() {
   }, [dbState, masteredIds]);
 
   /**
-   * AIによる問題生成 (修正点：Firebaseエラー時も動作・指数バックオフ搭載)
+   * AIによる問題生成 (修正：通信方式の最適化)
    */
   const fetchNewQuestions = async (level) => {
     if (isGenerating) return;
 
     const currentApiKey = getApiKey();
-    if (!currentApiKey) {
-      setStatusMsg("APIキーが読み込めていません。Vercelの環境変数設定（VITE_GEMINI_API_KEY）を確認し、Redeployしてください。");
+    if (!currentApiKey && typeof __app_id !== 'undefined') {
+      setStatusMsg("APIキーが読み込めていません。Vercelの環境変数設定を確認してください。");
       return;
     }
 
     setIsGenerating(true);
     setStatusMsg("AIが25問の新しい問題を作成中...");
 
-    const callAi = async (retryCount = 0) => {
-      // プレビュー環境(Canvas)ならpreview版、本番(Vercel)なら標準版
-      const modelName = typeof __app_id === 'undefined' ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash"; 
-      const systemPrompt = `You are an Eiken expert. Generate exactly 25 new Eiken ${level} exam questions. Provide 5 questions for each category: 'vocab', 'idiom', 'grammar', 'conversation', 'reading'. Format as JSON: { "questions": [ { "id": "unique", "category": "vocab/idiom/grammar/conversation/reading", "passage": "text", "question": "text", "options": ["A","B","C","D"], "answer": 0, "explanation": "Japanese explanation" } ] }`;
+    // 通信エラーを回避するための最新Geminiモデル
+    const modelName = typeof __app_id === 'undefined' ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash"; 
+    
+    const systemPrompt = `あなたは英検の専門講師です。英検${level}レベルの試験問題を、以下の5つの分野すべてから【各分野5問ずつ】、合計25問作成してください。分野名は必ず小文字の英語で 'vocab', 'idiom', 'grammar', 'conversation', 'reading' を使用してください。JSON形式のみで返してください。
+    
+    形式: 
+    { 
+      "questions": [ 
+        { 
+          "id": "unique_id", 
+          "category": "vocab/idiom/grammar/conversation/reading", 
+          "passage": "文章（読解以外は空文字）", 
+          "question": "問題文（空白は ______ とする）", 
+          "options": ["A","B","C","D"], 
+          "answer": 0, 
+          "explanation": "日本語の解説" 
+        } 
+      ] 
+    }`;
 
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${currentApiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
-        });
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${currentApiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          contents: [{ parts: [{ text: systemPrompt }] }],
+          generationConfig: { 
+            responseMimeType: "application/json",
+            temperature: 0.7 
+          }
+        })
+      });
 
-        if (!response.ok) throw new Error("AI communication failed");
-        const data = await response.json();
-        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Invalid AI format");
-        const parsed = JSON.parse(jsonMatch[0]);
-        
-        const timestamp = Date.now();
-        const processedBatch = parsed.questions.map((q, idx) => ({ ...q, id: `${level}-gen-${timestamp}-${idx}` }));
-        const newDb = { ...dbState, [level]: [...dbState[level], ...processedBatch] };
-        
-        setDbState(newDb);
-        if (user) await saveToCloud(newDb, null);
-        
-        setStatusMsg("成功！新しい問題が追加されました。");
-        setTimeout(() => setStatusMsg(null), 3000);
-      } catch (err) {
-        if (retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 1000;
-          await new Promise(r => setTimeout(r, delay));
-          return callAi(retryCount + 1);
-        }
-        console.error(err);
-        setStatusMsg(`エラー：通信に失敗しました。時間をおいてやり直してください。`);
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error?.message || "AI通信エラー");
       }
-    };
+      
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      // JSON部分を確実に抽出
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("AIの応答形式が不正です。");
+      
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!parsed.questions || !Array.isArray(parsed.questions)) throw new Error("問題データが見つかりません。");
+      
+      const timestamp = Date.now();
+      const processedBatch = parsed.questions.map((q, idx) => ({ 
+        ...q, 
+        id: `${level}-gen-${timestamp}-${idx}` 
+      }));
 
-    await callAi();
-    setIsGenerating(false);
+      // dbState全体を新しいオブジェクトとして更新し、Reactに分母の変更を即座に知らせる
+      const newDb = { ...dbState, [level]: [...dbState[level], ...processedBatch] };
+      setDbState(newDb);
+      
+      if (user) {
+        await saveToCloud(newDb, null);
+      }
+      
+      setStatusMsg("成功！新しい問題が追加されました。");
+      setTimeout(() => setStatusMsg(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setStatusMsg(`エラー：${err.message}`);
+      setTimeout(() => setStatusMsg(null), 5000);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const setupQuiz = (level, category) => {
@@ -385,13 +415,14 @@ export default function App() {
         <h2 className="text-xl font-black mb-8 uppercase tracking-tight">{selectedLevel} トレーニング</h2>
         <div className="grid grid-cols-2 gap-3 mb-10 text-slate-700">
           {Object.keys(categoryConfig).map(catKey => {
-            const IconComp = categoryConfig[catKey].icon;
+            const cat = categoryConfig[catKey];
+            const IconComp = cat.icon;
             const stats = progress[selectedLevel].categories[catKey];
             const isSelectable = catKey === 'all' || (stats && stats.total > 0);
             return (
               <button key={catKey} disabled={!isSelectable} onClick={() => setupQuiz(selectedLevel, catKey)} className={`p-5 rounded-[1.5rem] border-2 flex flex-col items-center gap-2 transition-all ${isSelectable ? 'border-slate-50 hover:border-indigo-200 bg-slate-50 active:scale-95 shadow-sm' : 'border-slate-50 bg-slate-50/50 text-slate-300 opacity-50 grayscale cursor-not-allowed'}`}>
                 <div className={isSelectable ? 'text-indigo-500' : 'text-slate-300'}><IconComp size={18} /></div>
-                <span className="text-xs font-black tracking-wider">{categoryConfig[catKey].name}</span>
+                <span className="text-xs font-black tracking-wider">{cat.name}</span>
                 {catKey !== 'all' && isSelectable && <span className="text-[9px] font-black bg-white px-2.5 py-1 rounded-full border border-slate-100 shadow-sm">{stats.mastered}/{stats.total}</span>}
               </button>
             );
