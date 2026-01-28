@@ -10,7 +10,7 @@ import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'firebase/firestor
 
 /**
  * ==========================================
- * 設定 & 初期化
+ * 設定 & 初期化 (エラー完全排除・Vercel対応版)
  * ==========================================
  */
 
@@ -19,14 +19,17 @@ const getSafeFirebaseEnv = () => {
   let rawId = 'eiken_pro_stable';
   
   try {
-    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-      config = JSON.parse(__firebase_config);
-    }
-    if (typeof __app_id !== 'undefined' && __app_id) {
-      rawId = __app_id;
+    // グローバル変数のチェック (ReferenceErrorを完全に回避)
+    if (typeof window !== 'undefined') {
+      const w = window;
+      if (w.__firebase_config) config = JSON.parse(w.__firebase_config);
+      else if (typeof __firebase_config !== 'undefined') config = JSON.parse(__firebase_config);
+      
+      if (w.__app_id) rawId = w.__app_id;
+      else if (typeof __app_id !== 'undefined') rawId = __app_id;
     }
   } catch (e) {
-    console.warn("Firebase environment not ready. Using offline mode.");
+    console.warn("Firebase environment not fully ready. Using default/offline mode.");
   }
   
   return { config, appId: rawId.replace(/[^a-zA-Z0-9_-]/g, '_') };
@@ -34,6 +37,7 @@ const getSafeFirebaseEnv = () => {
 
 const { config: firebaseConfig, appId } = getSafeFirebaseEnv();
 
+// Firebaseの初期化 (configがある場合のみ実行)
 let app, auth, db;
 if (firebaseConfig) {
   try {
@@ -45,17 +49,20 @@ if (firebaseConfig) {
   }
 }
 
+// APIキーの取得
 const getApiKey = () => {
   const canvasKey = ""; 
   if (canvasKey && canvasKey.length > 10) return canvasKey;
   try {
-    // import.meta.env が利用可能な場合はそこから取得
-    const envKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (envKey) return envKey;
-  } catch (e) {}
-  return "";
+    // Vercel / Vite 環境変数を参照
+    return import.meta.env.VITE_GEMINI_API_KEY || "";
+  } catch (e) {
+    return "";
+  }
 };
+const apiKey = getApiKey();
 
+// 25問を確実に保証する初期データ
 const INITIAL_DATABASE = {
   "3級": [
     { id: "3-v1", category: 'vocab', question: "I want to ______ a doctor in the future.", options: ["come", "become", "go", "make"], answer: 1, explanation: "～になる、は become です。" },
@@ -82,7 +89,7 @@ const INITIAL_DATABASE = {
     { id: "3-r2", category: 'reading', passage: "Emi saw temples in Kyoto. She bought cookies for her family.", question: "What did Emi do?", options: ["She saw temples.", "She stayed home.", "She ate cookies.", "She saw Kyoto."], answer: 0, explanation: "saw temples とあります。" },
     { id: "3-r3", category: 'reading', passage: "It was rainy yesterday. Tom read a book about space.", question: "Why did Tom stay home?", options: ["Sunny.", "Rainy.", "Tired.", "Space."], answer: 1, explanation: "It was rainy とあります。" },
     { id: "3-r4", category: 'reading', passage: "Maki is in the tennis club. She practices every day.", question: "What club is Maki in?", options: ["Music.", "Tennis.", "High school.", "Soccer."], answer: 1, explanation: "tennis club とあります。" },
-    { id: "3-r5", category: 'reading', passage: "Green Park is near the station. People walk dogs there.", question: "Where is Green Park?", options: ["Near the station.", "In the dog.", "In the beautiful.", "Near the spring."], answer: 0, explanation: "near the station です。" }
+    { id: "3-r5", category: 'reading', passage: "Green Park is near the station. People walk dogs there.", question: "Where is Green Park?", options: ["Near station.", "Dog.", "Beautiful.", "Spring."], answer: 0, explanation: "near the station です。" }
   ],
   "準2級": [
     { id: "p2-v1", category: 'vocab', question: "Introduce the law.", options: ["introduce", "increase", "invite", "invent"], answer: 0, explanation: "導入する。" },
@@ -103,7 +110,7 @@ const INITIAL_DATABASE = {
     { id: "p2-c1", category: 'conversation', question: "Sorry for late. ______", options: ["Don't worry.", "Welcome.", "Late.", "Pleasure."], answer: 0, explanation: "返答。" },
     { id: "p2-c2", category: 'conversation', question: "Mind if I open? ______", options: ["No, go ahead.", "Yes, please.", "Open it.", "I mind."], answer: 0, explanation: "許可。" },
     { id: "p2-c3", category: 'conversation', question: "Way to bank? ______", options: ["I'm new here.", "It's big.", "I'm a student.", "Go home."], answer: 0, explanation: "知らない時。" },
-    { id: "p2-c4", category: 'conversation', question: "What is your job? ______", options: ["Engineer.", "Living here.", "I like work.", "By car."], answer: 0, explanation: "職業回答。" },
+    { id: "p2-c4", category: 'conversation', question: "Job? ______", options: ["Engineer.", "Living here.", "I like work.", "By car."], answer: 0, explanation: "職業回答。" },
     { id: "p2-c5", category: 'conversation', question: "How is steak? ______", options: ["Delicious.", "Fine.", "Beef.", "Yes."], answer: 0, explanation: "感想回答。" },
     { id: "p2-r1", category: 'reading', passage: "Travel is good to learn cultures.", question: "Benefit?", options: ["Culture.", "Money.", "Staying.", "Car."], answer: 0, explanation: "文化習得。" },
     { id: "p2-r2", category: 'reading', passage: "Forests provide oxygen.", question: "Why important?", options: ["Oxygen.", "Cars.", "Computers.", "Humans."], answer: 0, explanation: "酸素供給。" },
@@ -114,29 +121,29 @@ const INITIAL_DATABASE = {
   "2級": [
     { id: "2-v1", category: 'vocab', question: "Profits declined.", options: ["declined", "delivered", "destroyed", "deserted"], answer: 0, explanation: "減少する。" },
     { id: "2-v2", category: 'vocab', question: "Research into space.", options: ["research", "resource", "remind", "refund"], answer: 0, explanation: "研究。" },
-    { id: "2-v3", category: 'vocab', question: "Vital ______ role.", options: ["vital", "violent", "vivid", "vocal"], answer: 0, explanation: "重要な役割(role)。" },
-    { id: "2-v4", category: 'vocab', question: "Explore ______ sources.", options: ["energy", "egg", "end", "eat"], answer: 0, explanation: "エネルギー源。" },
-    { id: "2-v5", category: 'vocab', question: "______ appropriate.", options: ["Hardly", "Hard", "Hardy", "Harden"], answer: 0, explanation: "ほとんど～ない。" },
-    { id: "2-i1", category: 'idiom', question: "Take measures.", options: ["measures", "make", "do", "get"], answer: 0, explanation: "対策を講じる。" },
-    { id: "2-i2", category: 'idiom', question: "Effect next month. ______", options: ["Come into", "Go out", "Make up", "Take off"], answer: 0, explanation: "施行される。" },
-    { id: "2-i3", category: 'idiom', question: "Warn him ______ danger.", options: ["of", "at", "to", "for"], answer: 0, explanation: "warn A of B。" },
-    { id: "2-i4", category: 'idiom', question: "Put up ______ noise.", options: ["with", "to", "on", "off"], answer: 0, explanation: "我慢する。" },
-    { id: "2-i5", category: 'idiom', question: "Call ______ attention.", options: ["for", "to", "at", "on"], answer: 0, explanation: "要求する。" },
-    { id: "2-g1", category: 'grammar', question: "If I ______ known.", options: ["had", "have", "has", "having"], answer: 0, explanation: "過去完了。" },
-    { id: "2-g2", category: 'grammar', question: "______ being tired.", options: ["In spite of", "Although", "Because", "Unless"], answer: 0, explanation: "にもかかわらず。" },
-    { id: "2-g3", category: 'grammar', question: "Stopped ______ able to leave.", options: ["were we", "we were", "we are", "are we"], answer: 0, explanation: "倒置。" },
-    { id: "2-g4", category: 'grammar', question: "No sooner ______ arrived.", options: ["had he", "he has", "did he", "was he"], answer: 0, explanation: "～するとすぐに。" },
-    { id: "2-g5", category: 'grammar', question: "Whatever he ______.", options: ["does", "do", "doing", "did"], answer: 0, explanation: "何をしたとしても。" },
-    { id: "2-c1", category: 'conversation', question: "Will it work? ______", options: ["It remains to be seen.", "I hope so.", "I'm afraid.", "Yes."], answer: 0, explanation: "様子を見る必要がある。" },
-    { id: "2-c2", category: 'conversation', question: "Tied up now. ______", options: ["Call back later.", "Tie it.", "Sorry.", "Late."], answer: 0, explanation: "忙しい時。" },
-    { id: "2-c3", category: 'conversation', question: "Bring anything? ______", options: ["Just yourself.", "Yes.", "Nothing.", "Fine."], answer: 0, explanation: "手ぶらで。" },
-    { id: "2-c4", category: 'conversation', question: "Movie? ______", options: ["Very moving.", "Found it.", "Didn't look.", "By bus."], answer: 0, explanation: "感想回答。" },
-    { id: "2-c5", category: 'conversation', question: "Way? ______", options: ["Take subway.", "Long way.", "Going.", "No."], answer: 0, explanation: "行き方。" },
-    { id: "2-r1", category: 'reading', passage: "AI is fast but may replace jobs.", question: "Effect?", options: ["Replacing jobs.", "Fast.", "Changing.", "Cost."], answer: 0, explanation: "仕事代替。" },
-    { id: "2-r2", category: 'reading', passage: "GPS leads safe travel.", question: "How used?", options: ["GPS.", "Space.", "Houses.", "Cars."], answer: 1, explanation: "GPS。" },
-    { id: "2-r3", category: 'reading', passage: "Urbanization for jobs.", question: "Why move?", options: ["To find jobs.", "Heat.", "Nature.", "Avoid people."], answer: 0, explanation: "仕事のため。" },
-    { id: "2-r4", category: 'reading', passage: "Diet prevents diseases.", question: "Benefit?", options: ["Prevents diseases.", "Causes.", "Expensive.", "Time."], answer: 0, explanation: "予防。" },
-    { id: "2-r5", category: 'reading', passage: "Renewable storage.", question: "Challenge?", options: ["Storage issues.", "Interest.", "Warming.", "Workers."], answer: 0, explanation: "貯蔵問題。" }
+    { id: "2-v3", category: 'vocab', question: "Vital ______ role.", options: ["vital", "violent", "vivid", "vocal"], answer: 0, explanation: "役割。" },
+    { id: "2-v4", category: 'vocab', question: "Explore sources.", options: ["energy", "egg", "end", "eat"], answer: 0, explanation: "エネルギー。" },
+    { id: "2-v5", category: 'vocab', question: "Hardly appropriate.", options: ["Hardly", "Hard", "Hardy", "Harden"], answer: 0, explanation: "ほとんど～ない。" },
+    { id: "2-i1", category: 'idiom', question: "Take measures.", options: ["measures", "make", "do", "get"], answer: 0, explanation: "対策。" },
+    { id: "2-i2", category: 'idiom', question: "Come into effect.", options: ["effect", "affect", "effort", "afford"], answer: 0, explanation: "施行。" },
+    { id: "2-i3", category: 'idiom', question: "Warn him of danger.", options: ["of", "at", "to", "for"], answer: 0, explanation: "warn A of B。" },
+    { id: "2-i4", category: 'idiom', question: "Put up with noise.", options: ["with", "to", "on", "off"], answer: 0, explanation: "我慢する。" },
+    { id: "2-i5", category: 'idiom', question: "Call for attention.", options: ["for", "to", "at", "on"], answer: 0, explanation: "要求する。" },
+    { id: "2-g1", category: 'grammar', question: "If I had known.", options: ["had", "have", "has", "having"], answer: 0, explanation: "過去完了。" },
+    { id: "2-g2", category: 'grammar', question: "In spite of being tired.", options: ["In spite of", "Although", "Because", "Unless"], answer: 0, explanation: "名詞句。" },
+    { id: "2-g3", category: 'grammar', question: "Were we able to.", options: ["were we", "we were", "we are", "are we"], answer: 0, explanation: "倒置。" },
+    { id: "2-g4", category: 'grammar', question: "No sooner had he.", options: ["had", "has", "did", "was"], answer: 0, explanation: "～するとすぐ。" },
+    { id: "2-g5", category: 'grammar', question: "Whatever he does.", options: ["does", "do", "doing", "did"], answer: 0, explanation: "複合関係代名詞。" },
+    { id: "2-c1", category: 'conversation', question: "Remains to be seen.", options: ["seen", "see", "saw", "seeing"], answer: 0, explanation: "様子見。" },
+    { id: "2-c2", category: 'conversation', question: "Tied up now.", options: ["Call later.", "Tie.", "Sorry.", "Late."], answer: 0, explanation: "忙しい。" },
+    { id: "2-c3", category: 'conversation', question: "Bring anything?", options: ["Just yourself.", "Yes.", "Nothing.", "Fine."], answer: 0, explanation: "手ぶら。" },
+    { id: "2-c4", category: 'conversation', question: "Found movie?", options: ["Moving.", "Found.", "Look.", "Bus."], answer: 0, explanation: "感想。" },
+    { id: "2-c5", category: 'conversation', question: "Best way?", options: ["Subway.", "Way.", "Going.", "No."], answer: 0, explanation: "移動。" },
+    { id: "2-r1", category: 'reading', passage: "AI is fast.", question: "Negative?", options: ["Jobs.", "Fast.", "Work.", "Cost."], answer: 0, explanation: "仕事。" },
+    { id: "2-r2", category: 'reading', passage: "GPS safe.", question: "Used?", options: ["GPS.", "Space.", "Houses.", "Cars."], answer: 1, explanation: "GPS。" },
+    { id: "2-r3", category: 'reading', passage: "Cities for jobs.", question: "Why?", options: ["Jobs.", "Heat.", "Nature.", "Avoid."], answer: 0, explanation: "職。" },
+    { id: "2-r4", category: 'reading', passage: "Diet prevents.", question: "Benefit?", options: ["Disease.", "Cause.", "Money.", "Time."], answer: 0, explanation: "予防。" },
+    { id: "2-r5", category: 'reading', passage: "Renewable storage.", question: "Challenge?", options: ["Storage.", "Interest.", "Warming.", "Workers."], answer: 0, explanation: "貯蔵。" }
   ]
 };
 
@@ -156,6 +163,7 @@ export default function App() {
   const [statusMsg, setStatusMsg] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // カテゴリー定義 (アイコン表示エラー #418 対策)
   const categoryConfig = {
     all: { name: "全分野", icon: Target },
     vocab: { name: "語彙", icon: BookOpen },
@@ -166,7 +174,7 @@ export default function App() {
   };
 
   /**
-   * Firebase Auth & Data
+   * Firebase Auth
    */
   useEffect(() => {
     if (!auth) {
@@ -192,8 +200,14 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  /**
+   * データ同期 (Firestore)
+   */
   useEffect(() => {
-    if (!user || !db) return;
+    if (!user || !db) {
+      if (!auth) setIsLoading(false);
+      return;
+    }
     const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'studyData', 'state');
     const unsubscribe = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
@@ -203,7 +217,7 @@ export default function App() {
       }
       setIsLoading(false);
     }, (err) => {
-      console.error("Firestore error", err);
+      console.error("Cloud data error", err);
       setIsLoading(false);
     });
     return () => unsubscribe();
@@ -241,91 +255,68 @@ export default function App() {
   }, [dbState, masteredIds]);
 
   /**
-   * AIによる問題生成 (修正：通信方式の最適化)
+   * AIによる問題生成
    */
   const fetchNewQuestions = async (level) => {
     if (isGenerating) return;
 
     const currentApiKey = getApiKey();
     if (!currentApiKey && typeof __app_id !== 'undefined') {
-      setStatusMsg("APIキーが読み込めていません。Vercelの環境変数設定を確認してください。");
+      setStatusMsg("APIキーが読み込めていません。VercelのEnvironment Variables設定を確認してください。");
       return;
     }
 
     setIsGenerating(true);
-    setStatusMsg("AIが25問の新しい問題を作成中...");
+    setStatusMsg("AIが新しい問題を作成中...");
 
-    // 通信エラーを回避するための最新Geminiモデル
-    const modelName = typeof __app_id === 'undefined' ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash"; 
-    
-    const systemPrompt = `あなたは英検の専門講師です。英検${level}レベルの試験問題を、以下の5つの分野すべてから【各分野5問ずつ】、合計25問作成してください。分野名は必ず小文字の英語で 'vocab', 'idiom', 'grammar', 'conversation', 'reading' を使用してください。JSON形式のみで返してください。
-    
-    形式: 
-    { 
-      "questions": [ 
-        { 
-          "id": "unique_id", 
-          "category": "vocab/idiom/grammar/conversation/reading", 
-          "passage": "文章（読解以外は空文字）", 
-          "question": "問題文（空白は ______ とする）", 
-          "options": ["A","B","C","D"], 
-          "answer": 0, 
-          "explanation": "日本語の解説" 
-        } 
-      ] 
-    }`;
+    // 通信制限(Quota)エラーに備えたリトライ機能
+    const callAi = async (retryCount = 0) => {
+      const isPreview = typeof __app_id === 'undefined';
+      const modelName = isPreview ? "gemini-2.5-flash-preview-09-2025" : "gemini-1.5-flash"; 
 
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${currentApiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          contents: [{ parts: [{ text: systemPrompt }] }],
-          generationConfig: { 
-            responseMimeType: "application/json",
-            temperature: 0.7 
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${currentApiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            contents: [{ parts: [{ text: `あなたは英検の専門講師です。英検${level}レベルの試験問題を、以下の5つの分野すべてから【各分野5問ずつ】、合計25問作成してください。分野名は必ず 'vocab', 'idiom', 'grammar', 'conversation', 'reading' を使用してください。JSON形式のみで返してください。形式: { "questions": [ { "id": "unique_id", "category": "vocab/idiom/grammar/conversation/reading", "passage": "text if reading", "question": "text", "options": ["A","B","C","D"], "answer": 0, "explanation": "Japanese explanation" } ] }` }] }],
+            generationConfig: { responseMimeType: "application/json" }
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          if (response.status === 429 && retryCount < 2) {
+            setStatusMsg(`AIが混雑しています... 5秒後に再試行します (${retryCount + 1}/2)`);
+            await new Promise(r => setTimeout(r, 5000));
+            return callAi(retryCount + 1);
           }
-        })
-      });
+          throw new Error(errData.error?.message || "AI通信エラー");
+        }
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error?.message || "AI通信エラー");
+        const data = await response.json();
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const cleanJson = rawText.replace(/```json|```/g, '').trim();
+        const parsed = JSON.parse(cleanJson);
+        
+        const timestamp = Date.now();
+        const processedBatch = parsed.questions.map((q, idx) => ({ ...q, id: `${level}-gen-${timestamp}-${idx}` }));
+        const newDb = { ...dbState, [level]: [...dbState[level], ...processedBatch] };
+        
+        setDbState(newDb);
+        if (user) await saveToCloud(newDb, null);
+        
+        setStatusMsg("成功！新しい問題が追加されました。");
+        setTimeout(() => setStatusMsg(null), 3000);
+      } catch (err) {
+        console.error(err);
+        setStatusMsg(`エラー：${err.message}`);
+        setTimeout(() => setStatusMsg(null), 5000);
       }
-      
-      const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      // JSON部分を確実に抽出
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AIの応答形式が不正です。");
-      
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (!parsed.questions || !Array.isArray(parsed.questions)) throw new Error("問題データが見つかりません。");
-      
-      const timestamp = Date.now();
-      const processedBatch = parsed.questions.map((q, idx) => ({ 
-        ...q, 
-        id: `${level}-gen-${timestamp}-${idx}` 
-      }));
+    };
 
-      // dbState全体を新しいオブジェクトとして更新し、Reactに分母の変更を即座に知らせる
-      const newDb = { ...dbState, [level]: [...dbState[level], ...processedBatch] };
-      setDbState(newDb);
-      
-      if (user) {
-        await saveToCloud(newDb, null);
-      }
-      
-      setStatusMsg("成功！新しい問題が追加されました。");
-      setTimeout(() => setStatusMsg(null), 3000);
-    } catch (err) {
-      console.error(err);
-      setStatusMsg(`エラー：${err.message}`);
-      setTimeout(() => setStatusMsg(null), 5000);
-    } finally {
-      setIsGenerating(false);
-    }
+    await callAi();
+    setIsGenerating(false);
   };
 
   const setupQuiz = (level, category) => {
@@ -398,7 +389,7 @@ export default function App() {
               </div>
               <div className="flex flex-col items-end text-right">
                 <div className="text-base font-black text-indigo-600">{progress[level].percent}%</div>
-                <div className="text-[10px] text-slate-400 font-bold">{progress[level].mastered}/{progress[level].total} 問習得</div>
+                <div className="text-[10px] text-slate-400 font-bold">{progress[level].mastered}/{progress[level].total} 問</div>
               </div>
             </button>
           ))}
@@ -415,14 +406,13 @@ export default function App() {
         <h2 className="text-xl font-black mb-8 uppercase tracking-tight">{selectedLevel} トレーニング</h2>
         <div className="grid grid-cols-2 gap-3 mb-10 text-slate-700">
           {Object.keys(categoryConfig).map(catKey => {
-            const cat = categoryConfig[catKey];
-            const IconComp = cat.icon;
+            const IconComp = categoryConfig[catKey].icon;
             const stats = progress[selectedLevel].categories[catKey];
             const isSelectable = catKey === 'all' || (stats && stats.total > 0);
             return (
               <button key={catKey} disabled={!isSelectable} onClick={() => setupQuiz(selectedLevel, catKey)} className={`p-5 rounded-[1.5rem] border-2 flex flex-col items-center gap-2 transition-all ${isSelectable ? 'border-slate-50 hover:border-indigo-200 bg-slate-50 active:scale-95 shadow-sm' : 'border-slate-50 bg-slate-50/50 text-slate-300 opacity-50 grayscale cursor-not-allowed'}`}>
                 <div className={isSelectable ? 'text-indigo-500' : 'text-slate-300'}><IconComp size={18} /></div>
-                <span className="text-xs font-black tracking-wider">{cat.name}</span>
+                <span className="text-xs font-black tracking-wider">{categoryConfig[catKey].name}</span>
                 {catKey !== 'all' && isSelectable && <span className="text-[9px] font-black bg-white px-2.5 py-1 rounded-full border border-slate-100 shadow-sm">{stats.mastered}/{stats.total}</span>}
               </button>
             );
@@ -449,7 +439,7 @@ export default function App() {
             </div>
             {q.passage && <div className="mb-8 p-6 bg-slate-50 rounded-[1.5rem] border border-slate-100 text-slate-700 leading-relaxed text-sm md:text-base italic shadow-inner">{q.passage}</div>}
             <h2 className="text-xl md:text-2xl font-bold text-slate-800 mb-10 whitespace-pre-wrap leading-tight">{q.question}</h2>
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 text-slate-800">
               {q.options.map((opt, i) => {
                 let style = "border-slate-100 hover:border-indigo-200 text-slate-600";
                 if (showExplanation) {
@@ -470,10 +460,10 @@ export default function App() {
             <div className="p-7 md:p-10 bg-slate-900 text-white animate-in slide-in-from-bottom-full duration-500">
               <div className="flex items-center gap-3 mb-5">
                 {userSelectedOption === q.answer ? <CheckCircle className="text-green-400" size={24} /> : <XCircle className="text-red-400" size={24} />}
-                <span className="font-black text-xl tracking-widest uppercase text-center">{userSelectedOption === q.answer ? 'Correct' : 'Incorrect'}</span>
+                <span className="font-black text-xl tracking-widest uppercase">{userSelectedOption === q.answer ? '正解' : '不正解'}</span>
               </div>
               <p className="text-slate-400 text-sm leading-relaxed mb-8 italic">{q.explanation}</p>
-              <button onClick={nextQuestion} className="w-full bg-indigo-600 py-5 rounded-[1.5rem] font-black tracking-widest hover:bg-indigo-500 active:scale-95 transition-all shadow-xl text-base">{currentQuestionIndex + 1 < quizQuestions.length ? 'NEXT QUESTION' : 'SEE RESULTS'}</button>
+              <button onClick={nextQuestion} className="w-full bg-indigo-600 py-5 rounded-[1.5rem] font-black tracking-widest hover:bg-indigo-500 active:scale-95 transition-all shadow-xl text-base">{currentQuestionIndex + 1 < quizQuestions.length ? '次の問題へ' : '結果を見る'}</button>
             </div>
           )}
         </div>
